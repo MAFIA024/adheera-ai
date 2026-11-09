@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:external_app_launcher/external_app_launcher.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 void main() {
@@ -37,36 +38,50 @@ class AdheeraScreen extends StatefulWidget {
 
 class _AdheeraScreenState extends State<AdheeraScreen> {
   late stt.SpeechToText _speech;
-  late FlutterTts _tts;
+  late AudioPlayer _audioPlayer;
 
   bool _isListening = false;
   bool _isThinking = false;
   String _userText = "Mic par tap karke boliye...";
-  String _adheeraReply = "Namaste! Main Adheera hoon. Main aapki kya madad kar sakti hoon?";
+  String _adheeraReply = "Namaste Boss! Main Adheera hoon. Bataiye kya madad karun?";
 
-  // Yahan apni NVIDIA API Key paste karein:
+  // 1. APNI NVIDIA KEY YAHAN DAALEIN:
   final String _nvidiaApiKey = "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";
+
+  // 2. APNI DEEPGRAM KEY YAHAN DAALEIN:
+  final String _deepgramApiKey = "fe6f00816fb142fc540cff404f21a7699397da87";
 
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
-    _tts = FlutterTts();
-    _initVoiceSettings();
+    _audioPlayer = AudioPlayer();
   }
 
-  // Real Insaan jaisi Sweet Voice settings
-  Future<void> _initVoiceSettings() async {
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  // Deepgram Ultra-Realistic Male Voice Engine
+  Future<void> _speakDeepgram(String text) async {
     try {
-      await _tts.setEngine("com.google.android.tts"); // Google Natural Engine
-    } catch (_) {}
-    await _tts.setLanguage("hi-IN");
-    await _tts.setPitch(1.05); // Sweet female pitch
-    await _tts.setSpeechRate(0.48); // Normal human talking speed (tez robot nahi)
-  }
+      final url = Uri.parse('https://api.deepgram.com/v1/speak?model=aura-arcas-en');
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Token $_deepgramApiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({"text": text}),
+      );
 
-  Future<void> _speak(String text) async {
-    await _tts.speak(text);
+      if (response.statusCode == 200) {
+        await _audioPlayer.stop();
+        await _audioPlayer.play(BytesSource(response.bodyBytes));
+      }
+    } catch (_) {}
   }
 
   Future<void> _listen() async {
@@ -98,35 +113,75 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     }
   }
 
-  // Commands ko direct open karne ka logic
+  // Koi bhi app launch karne ka master function
+  Future<void> _launchTargetApp(String packageName, String appName, [String? webUrl]) async {
+    setState(() => _adheeraReply = "$appName open kar raha hoon...");
+    await _speakDeepgram("Opening $appName");
+    try {
+      await LaunchApp.openApp(androidPackageName: packageName, openStore: false);
+    } catch (_) {
+      if (webUrl != null) {
+        await launchUrl(Uri.parse(webUrl), mode: LaunchMode.externalApplication);
+      }
+    }
+  }
+
+  // Saari apps aur commands ka handler
   Future<void> _processCommand(String text) async {
     String lower = text.toLowerCase();
 
-    // 1. YouTube Command
-    if (lower.contains("youtube")) {
-      setState(() => _adheeraReply = "YouTube khol rahi hoon...");
-      await _speak("YouTube khol rahi hoon");
-      try {
-        await launchUrl(Uri.parse("vnd.youtube:"), mode: LaunchMode.externalApplication);
-      } catch (e) {
-        await launchUrl(Uri.parse("https://www.youtube.com"), mode: LaunchMode.externalApplication);
-      }
-      return;
-    }
-
-    // 2. WhatsApp Command
+    // 1. WhatsApp
     if (lower.contains("whatsapp")) {
-      setState(() => _adheeraReply = "WhatsApp open kar rahi hoon...");
-      await _speak("WhatsApp open kar rahi hoon");
-      try {
-        await launchUrl(Uri.parse("whatsapp://send"), mode: LaunchMode.externalApplication);
-      } catch (e) {
-        await launchUrl(Uri.parse("https://api.whatsapp.com/send"), mode: LaunchMode.externalApplication);
-      }
+      await _launchTargetApp("com.whatsapp", "WhatsApp", "https://api.whatsapp.com/send");
+      return;
+    }
+    // 2. YouTube
+    if (lower.contains("youtube")) {
+      await _launchTargetApp("com.google.android.youtube", "YouTube", "https://www.youtube.com");
+      return;
+    }
+    // 3. Instagram
+    if (lower.contains("instagram") || lower.contains("insta")) {
+      await _launchTargetApp("com.instagram.android", "Instagram", "https://www.instagram.com");
+      return;
+    }
+    // 4. Chrome / Google
+    if (lower.contains("chrome") || lower.contains("browser") || lower.contains("google")) {
+      await _launchTargetApp("com.android.chrome", "Chrome", "https://www.google.com");
+      return;
+    }
+    // 5. Camera
+    if (lower.contains("camera")) {
+      await _launchTargetApp("com.android.camera", "Camera");
+      return;
+    }
+    // 6. Calculator
+    if (lower.contains("calculator") || lower.contains("hisab")) {
+      await _launchTargetApp("com.google.android.calculator", "Calculator");
+      return;
+    }
+    // 7. Settings
+    if (lower.contains("setting") || lower.contains("settings")) {
+      await _launchTargetApp("com.android.settings", "Settings");
+      return;
+    }
+    // 8. Gallery / Photos
+    if (lower.contains("gallery") || lower.contains("photos")) {
+      await _launchTargetApp("com.google.android.apps.photos", "Gallery");
+      return;
+    }
+    // 9. Spotify
+    if (lower.contains("spotify") || lower.contains("music") || lower.contains("gana")) {
+      await _launchTargetApp("com.spotify.music", "Spotify");
+      return;
+    }
+    // 10. Facebook
+    if (lower.contains("facebook")) {
+      await _launchTargetApp("com.facebook.katana", "Facebook", "https://www.facebook.com");
       return;
     }
 
-    // 3. Normal baaton ke liye NVIDIA AI
+    // Baaki baaton ke liye NVIDIA AI
     await _askNvidia(text);
   }
 
@@ -146,12 +201,12 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "Aapka naam Adheera hai. Aap ek pyari, smart aur madadgaar AI assistant hain. User ke sawalon ka chhota aur sweet Hindi/Hinglish me jawab dein."
+              "content": "Aapka naam Adheera hai. Aap ek loyal aur smart personal male AI assistant hain. User ke sawalon ka chhota, clear aur natural Hindi/English me answer dein."
             },
             {"role": "user", "content": prompt}
           ],
           "temperature": 0.6,
-          "max_tokens": 150,
+          "max_tokens": 120,
         }),
       );
 
@@ -163,7 +218,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           _adheeraReply = reply.trim();
         });
 
-        await _speak(reply);
+        await _speakDeepgram(reply);
       } else {
         setState(() {
           _adheeraReply = "Error (${response.statusCode}): ${response.body}";
@@ -215,7 +270,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                 ),
                 child: SingleChildScrollView(
                   child: Text(
-                    _isThinking ? "Adheera soch rahi hai..." : _adheeraReply,
+                    _isThinking ? "Adheera soch raha hai..." : _adheeraReply,
                     style: const TextStyle(fontSize: 18, color: Colors.white, height: 1.4),
                   ),
                 ),
@@ -247,7 +302,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
             ),
             const SizedBox(height: 15),
             Text(
-              _isListening ? "Sun rahi hoon..." : "Bolne ke liye Mic dabayein",
+              _isListening ? "Sun raha hoon..." : "Bolne ke liye Mic dabayein",
               style: const TextStyle(color: Colors.white60),
             ),
             const SizedBox(height: 20),
