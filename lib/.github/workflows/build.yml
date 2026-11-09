@@ -1,0 +1,54 @@
+name: Build Adheera APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Configure App & Permissions
+        run: |
+          flutter create --org com.adheera --project-name adheera_app app
+          cd app
+          flutter pub add http speech_to_text flutter_tts url_launcher
+          cp ../lib/main.dart lib/main.dart
+
+          # Mic aur Internet permissions add karna
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"\/>\n    <queries>\n        <intent>\n            <action android:name="android.speech.RecognitionService" \/>\n        </intent>\n    <\/queries>' $MANIFEST
+
+          # Speech engine compatibility
+          BUILD_GRADLE="android/app/build.gradle"
+          if [ -f "$BUILD_GRADLE" ]; then
+            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/g' $BUILD_GRADLE
+            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 23/g' $BUILD_GRADLE
+          fi
+
+      - name: Build APK with Secret Key
+        run: |
+          cd app
+          flutter build apk --release --dart-define=NVIDIA_API_KEY="${{ secrets.NVIDIA_API_KEY }}"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Adheera-AI-App
+          path: app/build/app/outputs/flutter-apk/app-release.apk
