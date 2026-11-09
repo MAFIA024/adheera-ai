@@ -45,7 +45,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   String _adheeraReply = "Namaste! Main Adheera hoon. Main aapki kya madad kar sakti hoon?";
 
   // NVIDIA API Key GitHub Secret se compile time par aayegi
-  final String _nvidiaApiKey = const String.fromEnvironment('NVIDIA_API_KEY');
+  final String _nvidiaApiKey = const String.fromEnvironment("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");
 
   @override
   void initState() {
@@ -133,7 +133,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
         await _tts.speak(cleanSpeech);
       } else {
         setState(() {
-          _adheeraReply = "Maaf kijiye, connect hone me dikkat hui.";
+          _adheeraReply = "Error";
         });
       }
     } catch (e) {
