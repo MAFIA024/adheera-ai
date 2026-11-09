@@ -5,6 +5,8 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:external_app_launcher/external_app_launcher.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:torch_light/torch_light.dart';
+import 'package:battery_plus/battery_plus.dart';
 
 void main() {
   runApp(const AdheeraApp());
@@ -39,11 +41,12 @@ class AdheeraScreen extends StatefulWidget {
 class _AdheeraScreenState extends State<AdheeraScreen> {
   late stt.SpeechToText _speech;
   late AudioPlayer _audioPlayer;
+  final Battery _battery = Battery();
 
   bool _isListening = false;
   bool _isThinking = false;
   String _userText = "Mic par tap karke boliye...";
-  String _adheeraReply = "Namaste Boss! Main Adheera hoon. Bataiye kya madad karun?";
+  String _adheeraReply = "Namaste Boss! Main Adheera hoon. Bataiye kya kaam karna hai?";
 
   // 1. APNI NVIDIA KEY YAHAN DAALEIN:
   final String _nvidiaApiKey = "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";
@@ -113,7 +116,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     }
   }
 
-  // Koi bhi app launch karne ka master function
+  // App Launch Helper
   Future<void> _launchTargetApp(String packageName, String appName, [String? webUrl]) async {
     setState(() => _adheeraReply = "$appName open kar raha hoon...");
     await _speakDeepgram("Opening $appName");
@@ -126,62 +129,92 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     }
   }
 
-  // Saari apps aur commands ka handler
+  // Hardware Controls aur Apps ka Master Handler
   Future<void> _processCommand(String text) async {
     String lower = text.toLowerCase();
 
-    // 1. WhatsApp
+    // --- HARDWARE CONTROLS ---
+
+    // 1. Flashlight ON
+    if (lower.contains("torch on") || lower.contains("flashlight on") || lower.contains("light on") || lower.contains("torch jalao")) {
+      try {
+        await TorchLight.enableTorch();
+        setState(() => _adheeraReply = "Flashlight ON kar diya hai.");
+        await _speakDeepgram("Flashlight is turned on");
+      } catch (e) {
+        setState(() => _adheeraReply = "Torch on karne me dikkat aayi.");
+      }
+      return;
+    }
+
+    // 2. Flashlight OFF
+    if (lower.contains("torch off") || lower.contains("flashlight off") || lower.contains("light off") || lower.contains("torch band")) {
+      try {
+        await TorchLight.disableTorch();
+        setState(() => _adheeraReply = "Flashlight OFF kar diya hai.");
+        await _speakDeepgram("Flashlight is turned off");
+      } catch (e) {
+        setState(() => _adheeraReply = "Torch band karne me dikkat aayi.");
+      }
+      return;
+    }
+
+    // 3. Battery Percentage Check
+    if (lower.contains("battery") || lower.contains("charging") || lower.contains("charge kitna")) {
+      try {
+        final level = await _battery.batteryLevel;
+        String msg = "Phone me abhi $level percent battery bachi hai.";
+        setState(() => _adheeraReply = msg);
+        await _speakDeepgram("Battery is at $level percent");
+      } catch (e) {
+        setState(() => _adheeraReply = "Battery check nahi ho paayi.");
+      }
+      return;
+    }
+
+    // --- APPS OPENING ---
     if (lower.contains("whatsapp")) {
       await _launchTargetApp("com.whatsapp", "WhatsApp", "https://api.whatsapp.com/send");
       return;
     }
-    // 2. YouTube
     if (lower.contains("youtube")) {
       await _launchTargetApp("com.google.android.youtube", "YouTube", "https://www.youtube.com");
       return;
     }
-    // 3. Instagram
     if (lower.contains("instagram") || lower.contains("insta")) {
       await _launchTargetApp("com.instagram.android", "Instagram", "https://www.instagram.com");
       return;
     }
-    // 4. Chrome / Google
     if (lower.contains("chrome") || lower.contains("browser") || lower.contains("google")) {
       await _launchTargetApp("com.android.chrome", "Chrome", "https://www.google.com");
       return;
     }
-    // 5. Camera
     if (lower.contains("camera")) {
       await _launchTargetApp("com.android.camera", "Camera");
       return;
     }
-    // 6. Calculator
     if (lower.contains("calculator") || lower.contains("hisab")) {
       await _launchTargetApp("com.google.android.calculator", "Calculator");
       return;
     }
-    // 7. Settings
     if (lower.contains("setting") || lower.contains("settings")) {
       await _launchTargetApp("com.android.settings", "Settings");
       return;
     }
-    // 8. Gallery / Photos
     if (lower.contains("gallery") || lower.contains("photos")) {
       await _launchTargetApp("com.google.android.apps.photos", "Gallery");
       return;
     }
-    // 9. Spotify
     if (lower.contains("spotify") || lower.contains("music") || lower.contains("gana")) {
       await _launchTargetApp("com.spotify.music", "Spotify");
       return;
     }
-    // 10. Facebook
     if (lower.contains("facebook")) {
       await _launchTargetApp("com.facebook.katana", "Facebook", "https://www.facebook.com");
       return;
     }
 
-    // Baaki baaton ke liye NVIDIA AI
+    // --- NORMAL AI CHAT (NVIDIA) ---
     await _askNvidia(text);
   }
 
@@ -201,7 +234,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "Aapka naam Adheera hai. Aap ek loyal aur smart personal male AI assistant hain. User ke sawalon ka chhota, clear aur natural Hindi/English me answer dein."
+              "content": "Aapka naam Adheera hai. Aap ek smart aur loyal personal male AI assistant hain. User ke sawalon ka chhota, accurate aur natural Hindi/English me answer dein."
             },
             {"role": "user", "content": prompt}
           ],
