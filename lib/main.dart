@@ -21,9 +21,9 @@ class AdheeraApp extends StatelessWidget {
       title: 'Adheera AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0F172A),
+        scaffoldBackgroundColor: const Color(0xFF0B132B),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF38BDF8),
+          primary: Color(0xFF00E5FF),
         ),
       ),
       home: const AdheeraScreen(),
@@ -46,28 +46,30 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   bool _isListening = false;
   bool _isThinking = false;
   String _userText = "Mic par tap karke boliye...";
-  String _adheeraReply = "Namaste Boss! Main Adheera hoon. Bataiye kya kaam karna hai?";
+  String _adheeraReply = "All systems online, Boss! Main Adheera hoon. Bataiye kya order hai?";
 
-  // APNI NVIDIA KEY YAHAN DAALEIN:
+  // ==========================================
+  // APNI NVIDIA KEY YAHAN PASTE KAREIN (LINE 46):
   final String _nvidiaApiKey = "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";
+  // ==========================================
 
   @override
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
     _tts = FlutterTts();
-    _initTtsEngine();
+    _initJarvisVoice();
   }
 
-  Future<void> _initTtsEngine() async {
+  Future<void> _initJarvisVoice() async {
     await _tts.awaitSpeakCompletion(true);
     await _tts.setLanguage("hi-IN");
-    await _tts.setPitch(0.82); // Confident deep male tone
+    await _tts.setPitch(0.82); // Deep, calm, confident male tone
     await _tts.setSpeechRate(0.48); // Natural human talking speed
 
-    // App open hone ke 1 second baad bolkar start karega
+    // App open hote hi Jarvis welcome bolega
     Future.delayed(const Duration(milliseconds: 1000), () {
-      _speak("Hello Boss! Main Adheera hoon. Bataiye kya kaam karna hai?");
+      _speak("All systems online, Boss! Main Adheera hoon. Bataiye kya order hai?");
     });
   }
 
@@ -107,8 +109,9 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   }
 
   Future<void> _launchTargetApp(String packageName, String appName, [String? webUrl]) async {
-    setState(() => _adheeraReply = "$appName open kar raha hoon...");
-    await _speak("Opening $appName");
+    String msg = "$appName open kar raha hoon, Boss.";
+    setState(() => _adheeraReply = msg);
+    await _speak(msg);
     try {
       await LaunchApp.openApp(androidPackageName: packageName, openStore: false);
     } catch (_) {
@@ -125,8 +128,9 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     if (lower.contains("torch on") || lower.contains("flashlight on") || lower.contains("light on") || lower.contains("torch jalao")) {
       try {
         await TorchLight.enableTorch();
-        setState(() => _adheeraReply = "Flashlight ON kar diya hai.");
-        await _speak("Flashlight on kar diya hai");
+        String msg = "Flashlight activate kar di hai, Boss.";
+        setState(() => _adheeraReply = msg);
+        await _speak(msg);
       } catch (e) {
         setState(() => _adheeraReply = "Torch on karne me dikkat aayi.");
       }
@@ -137,8 +141,9 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     if (lower.contains("torch off") || lower.contains("flashlight off") || lower.contains("light off") || lower.contains("torch band")) {
       try {
         await TorchLight.disableTorch();
-        setState(() => _adheeraReply = "Flashlight OFF kar diya hai.");
-        await _speak("Flashlight band kar diya hai");
+        String msg = "Flashlight band kar di hai, Boss.";
+        setState(() => _adheeraReply = msg);
+        await _speak(msg);
       } catch (e) {
         setState(() => _adheeraReply = "Torch band karne me dikkat aayi.");
       }
@@ -149,7 +154,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     if (lower.contains("battery") || lower.contains("charging") || lower.contains("charge kitna")) {
       try {
         final level = await _battery.batteryLevel;
-        String msg = "Boss, phone me $level percent battery bachi hai.";
+        String msg = "Boss, system battery status $level percent par hai.";
         setState(() => _adheeraReply = msg);
         await _speak(msg);
       } catch (e) {
@@ -158,7 +163,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // 4. Apps Opening
+    // 4. Common Apps Opening
     if (lower.contains("whatsapp")) {
       await _launchTargetApp("com.whatsapp", "WhatsApp", "https://api.whatsapp.com/send");
       return;
@@ -200,7 +205,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // --- NVIDIA AI BRAIN ---
+    // --- NVIDIA JARVIS AI BRAIN ---
     await _askNvidia(text);
   }
 
@@ -216,16 +221,18 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           'Authorization': 'Bearer $_nvidiaApiKey',
         },
         body: jsonEncode({
-          "model": "meta/llama-3.2-90b-vision-instruct",
+          // SABSE POWERFUL LLAMA-3.3 70B MODEL:
+          "model": "meta/llama-3.3-70b-instruct",
           "messages": [
             {
               "role": "system",
-              "content": "You are Adheera, a powerful male personal AI assistant like Jarvis. Always reply in clean Hindi or Hinglish using the Roman alphabet (e.g. 'Haan Boss, main bilkul theek hoon'). Do NOT use Devanagari script. Keep answers confident, direct, and respectful."
+              // ASLI JARVIS PERSONALITY PROMPT:
+              "content": "You are Adheera, a personal male AI assistant modeled directly after Tony Stark's JARVIS. You are extremely intelligent, loyal, calm, analytical, and polite. Always address the user as 'Boss' or 'Sir'. Reply in crisp, natural Hinglish using the Roman alphabet (e.g. 'Haan Boss, main check karta hoon'). Never use Devanagari Hindi characters. Keep answers short (maximum 2-3 sentences), confident, and to the point. Do not give long lectures."
             },
             {"role": "user", "content": prompt}
           ],
           "temperature": 0.6,
-          "max_tokens": 100,
+          "max_tokens": 120,
         }),
       );
 
@@ -256,7 +263,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ADHEERA AI', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2)),
+        title: const Text('ADHEERA // JARVIS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 3, fontSize: 18, color: Color(0xFF00E5FF))),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -265,12 +272,14 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
+            // User Speech Box
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF1E293B),
+                color: const Color(0xFF1C2541),
                 borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.white10),
               ),
               child: Text(
                 _userText,
@@ -278,14 +287,23 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
               ),
             ),
             const SizedBox(height: 20),
+
+            // Adheera Jarvis Response Card
             Expanded(
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
-                  borderRadius: BorderRadius.circular(15),
-                  border: Border.all(color: const Color(0xFF38BDF8).withOpacity(0.3)),
+                  color: const Color(0xFF1C2541),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF00E5FF).withOpacity(0.08),
+                      blurRadius: 15,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,9 +311,16 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text("ADHEERA", style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 13)),
+                        const Row(
+                          children: [
+                            Icon(Icons.bolt, color: Color(0xFF00E5FF), size: 18),
+                            SizedBox(width: 5),
+                            Text("ADHEERA PROTOCOL", style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5)),
+                          ],
+                        ),
+                        // Replay Voice Button
                         IconButton(
-                          icon: const Icon(Icons.volume_up, color: Color(0xFF38BDF8)),
+                          icon: const Icon(Icons.volume_up, color: Color(0xFF00E5FF), size: 22),
                           onPressed: () => _speak(_adheeraReply),
                         ),
                       ],
@@ -304,8 +329,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                     Expanded(
                       child: SingleChildScrollView(
                         child: Text(
-                          _isThinking ? "Adheera soch raha hai..." : _adheeraReply,
-                          style: const TextStyle(fontSize: 18, color: Colors.white, height: 1.4),
+                          _isThinking ? "Processing command, Boss..." : _adheeraReply,
+                          style: const TextStyle(fontSize: 17, color: Colors.white, height: 1.5, letterSpacing: 0.3),
                         ),
                       ),
                     ),
@@ -313,7 +338,10 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                 ),
               ),
             ),
+
             const SizedBox(height: 30),
+
+            // Futuristic Glowing Mic Button
             GestureDetector(
               onTap: _listen,
               child: Container(
@@ -321,28 +349,28 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                 height: 90,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _isListening ? Colors.redAccent : const Color(0xFF38BDF8),
+                  color: _isListening ? Colors.redAccent : const Color(0xFF00E5FF),
                   boxShadow: [
                     BoxShadow(
-                      color: (_isListening ? Colors.redAccent : const Color(0xFF38BDF8)).withOpacity(0.5),
-                      blurRadius: 25,
-                      spreadRadius: 5,
+                      color: (_isListening ? Colors.redAccent : const Color(0xFF00E5FF)).withOpacity(0.5),
+                      blurRadius: 30,
+                      spreadRadius: 6,
                     ),
                   ],
                 ),
                 child: Icon(
                   _isListening ? Icons.mic : Icons.mic_none,
                   size: 45,
-                  color: Colors.white,
+                  color: _isListening ? Colors.white : const Color(0xFF0B132B),
                 ),
               ),
             ),
             const SizedBox(height: 15),
             Text(
-              _isListening ? "Sun raha hoon..." : "Bolne ke liye Mic dabayein",
-              style: const TextStyle(color: Colors.white60),
+              _isListening ? "Listening to Boss..." : "Tap to Speak",
+              style: const TextStyle(color: Colors.white60, letterSpacing: 1),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 15),
           ],
         ),
       ),
