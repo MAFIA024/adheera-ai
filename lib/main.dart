@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -21,9 +22,9 @@ class AdheeraApp extends StatelessWidget {
       title: 'Adheera AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0B132B),
+        scaffoldBackgroundColor: const Color(0xFF0D1322),
         colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF00E5FF),
+          primary: Color(0xFFFF6B6B),
         ),
       ),
       home: const AdheeraScreen(),
@@ -38,22 +39,23 @@ class AdheeraScreen extends StatefulWidget {
   State<AdheeraScreen> createState() => _AdheeraScreenState();
 }
 
-class _AdheeraScreenState extends State<AdheeraScreen> {
+class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProviderStateMixin {
   late stt.SpeechToText _speech;
   late FlutterTts _tts;
   final Battery _battery = Battery();
+  late AnimationController _orbController;
 
   bool _isListening = false;
   bool _isThinking = false;
-  String _userText = "Mic par tap karke boliye...";
-  String _adheeraReply = "All systems online, Boss! 4-Core AI Matrix active.";
+  String _userText = "Commands dene ke liye tap karein...";
+  String _adheeraReply = "All systems online, Boss! Main Adheera hoon.";
 
   // ==============================================================
   // APNI KEYS YAHAN PASTE KAREIN:
-  final String _openAiApiKey = "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"; // OpenAI
-  final String _groqApiKey = "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";           // Groq
-  final String _nvidiaApiKey = "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";     // NVIDIA
-  final String _geminiApiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";    // Google Gemini
+  final String _openAiApiKey = "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";
+  final String _groqApiKey = "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";
+  final String _nvidiaApiKey = "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";
+  final String _geminiApiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";
   // ==============================================================
 
   @override
@@ -61,7 +63,20 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     super.initState();
     _speech = stt.SpeechToText();
     _tts = FlutterTts();
+    
+    // Continuous 3D Orb Animation
+    _orbController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat();
+
     _initJarvisVoice();
+  }
+
+  @override
+  void dispose() {
+    _orbController.dispose();
+    super.dispose();
   }
 
   Future<void> _initJarvisVoice() async {
@@ -70,8 +85,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     await _tts.setPitch(0.82);
     await _tts.setSpeechRate(0.50);
 
-    Future.delayed(const Duration(milliseconds: 800), () {
-      _speak("All systems online, Boss! 4-Core AI Matrix active. Bataiye kya order hai?");
+    Future.delayed(const Duration(milliseconds: 700), () {
+      _speak("All systems online, Boss! Main Adheera hoon. Bataiye kya order hai?");
     });
   }
 
@@ -119,7 +134,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
 
   void _triggerCommand() {
     if (_userText.isNotEmpty && 
-        _userText != "Mic par tap karke boliye..." && 
+        _userText != "Commands dene ke liye tap karein..." && 
         _userText != "Sun raha hoon, boliye Boss...") {
       _processCommand(_userText);
     }
@@ -220,11 +235,10 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // --- 4-CORE MULTI-AI ENGINE ---
+    // AI Engines
     await _askMultiAI(text);
   }
 
-  // Core 1: OpenAI (GPT-4o Mini - Ultra Smart & Reliable)
   Future<String?> _callOpenAI(String prompt) async {
     try {
       final url = Uri.parse('https://api.openai.com/v1/chat/completions');
@@ -239,7 +253,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "You are Adheera, a personal male AI assistant modeled after JARVIS. Address user as 'Boss'. Reply in short, natural Hinglish using the Roman alphabet (e.g., 'Haan Boss, main theek hoon'). Never use Devanagari Hindi characters. Keep answers short and direct."
+              "content": "You are Adheera, a personal male AI assistant like JARVIS. Address user as 'Boss'. Reply in short, natural Hinglish using Roman alphabet. Keep answers short and direct."
             },
             {"role": "user", "content": prompt}
           ],
@@ -256,7 +270,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     return null;
   }
 
-  // Core 2: Groq (0.2s Ultra Fast)
   Future<String?> _callGroq(String prompt) async {
     try {
       final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
@@ -271,7 +284,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "You are Adheera, a personal male AI assistant modeled after JARVIS. Address user as 'Boss'. Reply in short, confident Hinglish using Roman alphabet."
+              "content": "You are Adheera, an AI assistant like JARVIS. Address user as 'Boss'. Reply in short, confident Hinglish."
             },
             {"role": "user", "content": prompt}
           ],
@@ -288,7 +301,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     return null;
   }
 
-  // Core 3: NVIDIA NIM
   Future<String?> _callNvidia(String prompt) async {
     try {
       final url = Uri.parse('https://integrate.api.nvidia.com/v1/chat/completions');
@@ -320,7 +332,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     return null;
   }
 
-  // Core 4: Google Gemini
   Future<String?> _callGemini(String prompt) async {
     try {
       final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey');
@@ -346,26 +357,17 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     return null;
   }
 
-  // Master Failover Controller (Screen kabhi freeze nahi hogi)
   Future<void> _askMultiAI(String prompt) async {
     setState(() => _isThinking = true);
     String? reply;
 
     try {
-      // 1. Pehle OpenAI try karega (Sabse best & reliable)
       reply = await _callOpenAI(prompt);
-
-      // 2. Agar OpenAI fail hua, toh Groq
       reply ??= await _callGroq(prompt);
-
-      // 3. Agar Groq fail hua, toh NVIDIA
       reply ??= await _callNvidia(prompt);
-
-      // 4. Agar teeno fail huye, toh Google Gemini
       reply ??= await _callGemini(prompt);
     } catch (_) {
     } finally {
-      // Is block se screen kabhi freeze nahi hogi
       setState(() => _isThinking = false);
     }
 
@@ -385,110 +387,225 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ADHEERA // JARVIS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 3, fontSize: 18, color: Color(0xFF00E5FF))),
+        title: const Text('ADHEERA // JARVIS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 3, fontSize: 18, color: Color(0xFFFF7675))),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
         child: Column(
           children: [
+            // User Text Card
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: const Color(0xFF1C2541),
+                color: const Color(0xFF161F33),
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(color: Colors.white10),
               ),
               child: Text(
                 _userText,
-                style: const TextStyle(fontSize: 16, color: Colors.white70),
+                style: const TextStyle(fontSize: 15, color: Colors.white70),
               ),
             ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1C2541),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFF00E5FF).withOpacity(0.4)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF00E5FF).withOpacity(0.08),
-                      blurRadius: 15,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.bolt, color: Color(0xFF00E5FF), size: 18),
-                            SizedBox(width: 5),
-                            Text("QUAD-AI MATRIX", style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5)),
-                          ],
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.volume_up, color: Color(0xFF00E5FF), size: 22),
-                          onPressed: () => _speak(_adheeraReply),
-                        ),
-                      ],
-                    ),
-                    const Divider(color: Colors.white12),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        child: Text(
-                          _isThinking ? "Consulting AI Matrix, Boss..." : _adheeraReply,
-                          style: const TextStyle(fontSize: 17, color: Colors.white, height: 1.5, letterSpacing: 0.3),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 30),
+            
+            const Spacer(),
+
+            // ==========================================
+            // VIDEO JAISA EXACT SWIRLING PARTICLE ORB (MEDIUM SIZE)
+            // ==========================================
             GestureDetector(
               onTap: _listen,
-              child: Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _isListening ? Colors.redAccent : const Color(0xFF00E5FF),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (_isListening ? Colors.redAccent : const Color(0xFF00E5FF)).withOpacity(0.5),
-                      blurRadius: 30,
-                      spreadRadius: 6,
+              child: AnimatedBuilder(
+                animation: _orbController,
+                builder: (context, child) {
+                  return SizedBox(
+                    width: 200,
+                    height: 200,
+                    child: CustomPaint(
+                      painter: SwirlingParticleOrbPainter(
+                        animationValue: _orbController.value,
+                        isListening: _isListening,
+                        isThinking: _isThinking,
+                      ),
                     ),
-                  ],
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            // Status Indicator Pill (Video jaisa)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF161F33),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _isListening 
+                      ? const Color(0xFFFF5252) 
+                      : (_isThinking ? const Color(0xFFFAB1A0) : Colors.white12),
                 ),
-                child: Icon(
-                  _isListening ? Icons.mic : Icons.mic_none,
-                  size: 45,
-                  color: _isListening ? Colors.white : const Color(0xFF0B132B),
+              ),
+              child: Text(
+                _isListening 
+                    ? "• MIC ON — LISTENING..." 
+                    : (_isThinking ? "• THINKING..." : "• TAP ORB TO SPEAK •"),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: _isListening ? const Color(0xFFFF5252) : const Color(0xFFFAB1A0),
                 ),
               ),
             ),
-            const SizedBox(height: 15),
-            Text(
-              _isListening ? "Bol kar dobara tap karein to SEND" : "Tap to Speak",
-              style: const TextStyle(color: Colors.white60, letterSpacing: 1),
+
+            const Spacer(),
+
+            // Adheera Response Card
+            Container(
+              width: double.infinity,
+              height: 160,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF161F33),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFFF7675).withOpacity(0.3)),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF7675).withOpacity(0.08),
+                    blurRadius: 15,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "ADHEERA RESPONSE", 
+                        style: TextStyle(color: Color(0xFFFF7675), fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.5),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.volume_up, color: Color(0xFFFF7675), size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _speak(_adheeraReply),
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Colors.white10, height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Text(
+                        _isThinking ? "Processing command, Boss..." : _adheeraReply,
+                        style: const TextStyle(fontSize: 15, color: Colors.white, height: 1.4),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 15),
+            const SizedBox(height: 10),
           ],
         ),
       ),
     );
   }
 }
+
+// ==========================================
+// 3D SWIRLING PARTICLE ORB PAINTER (Video Style)
+// ==========================================
+class Point3D {
+  final double x, y, z;
+  final double baseColorRatio;
+  const Point3D(this.x, this.y, this.z, this.baseColorRatio);
+}
+
+class SwirlingParticleOrbPainter extends CustomPainter {
+  final double animationValue;
+  final bool isListening;
+  final bool isThinking;
+
+  // Pre-calculated Fibonacci sphere points (Smooth performance)
+  static final List<Point3D> _spherePoints = () {
+    final list = <Point3D>[];
+    const count = 260;
+    const phi = 2.399963229728653; // Golden angle
+    for (int i = 0; i < count; i++) {
+      final y = 1.0 - (i / (count - 1.0)) * 2.0;
+      final radius = math.sqrt(1.0 - y * y);
+      final theta = phi * i;
+      final x = math.cos(theta) * radius;
+      final z = math.sin(theta) * radius;
+      list.add(Point3D(x, y, z, i / count));
+    }
+    return list;
+  }();
+
+  SwirlingParticleOrbPainter({
+    required this.animationValue,
+    required this.isListening,
+    required this.isThinking,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final baseRadius = size.width * 0.40;
+
+    // Commands speed & wave ripple multiplier
+    double speedMultiplier = 1.0;
+    double waveAmp = 0.04;
+
+    if (isThinking) {
+      speedMultiplier = 3.2;
+      waveAmp = 0.12;
+    } else if (isListening) {
+      speedMultiplier = 2.4;
+      waveAmp = 0.16;
+    }
+
+    final angleY = animationValue * 2 * math.pi * speedMultiplier;
+    final angleX = math.sin(animationValue * 2 * math.pi) * 0.35;
+
+    // Core Glowing Sphere (Video style center aura)
+    final glowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.white.withOpacity(0.35),
+          const Color(0xFFFF7675).withOpacity(0.20),
+          const Color(0xFFFD79A8).withOpacity(0.08),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.45, 0.75, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: baseRadius * 0.95));
+
+    canvas.drawCircle(center, baseRadius * 0.95, glowPaint);
+
+    // 3D Particles rotation & projection
+    for (final pt in _spherePoints) {
+      // Rotation Y
+      final cosY = math.cos(angleY);
+      final sinY = math.sin(angleY);
+      final x1 = pt.x * cosY - pt.z * sinY;
+      final z1 = pt.x * sinY + pt.z * cosY;
+
+      // Rotation X
+      final cosX = math.cos(angleX);
+      final sinX = math.sin(angleX);
+      final y1 = pt.y * cosX - z1 * sinX;
+      final z2 = pt.y * sinX + z1 * cosX;
+
+      // Dynamic Wave on Speech / Commands
+      final wave = 1.0 + waveAmp * math.sin(animationValue * 10 + pt.x * 4 + pt.y * 3);
+      final r = baseRadius * wave;
+
+      final screenX = 
