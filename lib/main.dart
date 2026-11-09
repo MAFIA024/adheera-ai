@@ -44,7 +44,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   String _userText = "Mic par tap karke boliye...";
   String _adheeraReply = "Namaste! Main Adheera hoon. Main aapki kya madad kar sakti hoon?";
 
-  // APNI NVIDIA KEY YAHAN DAALEIN:
+  // Yahan apni NVIDIA API Key paste karein:
   final String _nvidiaApiKey = "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";
 
   @override
@@ -55,10 +55,14 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     _initVoiceSettings();
   }
 
+  // Real Insaan jaisi Sweet Voice settings
   Future<void> _initVoiceSettings() async {
+    try {
+      await _tts.setEngine("com.google.android.tts"); // Google Natural Engine
+    } catch (_) {}
     await _tts.setLanguage("hi-IN");
-    await _tts.setPitch(1.0);
-    await _tts.setSpeechRate(0.9);
+    await _tts.setPitch(1.05); // Sweet female pitch
+    await _tts.setSpeechRate(0.48); // Normal human talking speed (tez robot nahi)
   }
 
   Future<void> _speak(String text) async {
@@ -94,17 +98,18 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     }
   }
 
-  // Pehle check karega ki koi direct command hai ya baat karni hai
+  // Commands ko direct open karne ka logic
   Future<void> _processCommand(String text) async {
     String lower = text.toLowerCase();
 
     // 1. YouTube Command
     if (lower.contains("youtube")) {
-      setState(() => _adheeraReply = "YouTube open kar rahi hoon...");
-      await _speak("YouTube open kar rahi hoon");
-      final uri = Uri.parse("https://www.youtube.com");
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      setState(() => _adheeraReply = "YouTube khol rahi hoon...");
+      await _speak("YouTube khol rahi hoon");
+      try {
+        await launchUrl(Uri.parse("vnd.youtube:"), mode: LaunchMode.externalApplication);
+      } catch (e) {
+        await launchUrl(Uri.parse("https://www.youtube.com"), mode: LaunchMode.externalApplication);
       }
       return;
     }
@@ -113,14 +118,15 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     if (lower.contains("whatsapp")) {
       setState(() => _adheeraReply = "WhatsApp open kar rahi hoon...");
       await _speak("WhatsApp open kar rahi hoon");
-      final uri = Uri.parse("whatsapp://send");
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      try {
+        await launchUrl(Uri.parse("whatsapp://send"), mode: LaunchMode.externalApplication);
+      } catch (e) {
+        await launchUrl(Uri.parse("https://api.whatsapp.com/send"), mode: LaunchMode.externalApplication);
       }
       return;
     }
 
-    // 3. Baaki baaton ke liye NVIDIA AI se poochega
+    // 3. Normal baaton ke liye NVIDIA AI
     await _askNvidia(text);
   }
 
@@ -140,7 +146,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "Aapka naam Adheera hai. Aap ek pyari, smart aur loyal personal AI assistant hain. User ke sawalon ka chhota, accurate aur sweet Hindi/Hinglish me jawab dein."
+              "content": "Aapka naam Adheera hai. Aap ek pyari, smart aur madadgaar AI assistant hain. User ke sawalon ka chhota aur sweet Hindi/Hinglish me jawab dein."
             },
             {"role": "user", "content": prompt}
           ],
@@ -160,7 +166,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
         await _speak(reply);
       } else {
         setState(() {
-          _adheeraReply = "Server Error (${response.statusCode}): ${response.body}";
+          _adheeraReply = "Error (${response.statusCode}): ${response.body}";
         });
       }
     } catch (e) {
