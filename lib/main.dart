@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:external_app_launcher/external_app_launcher.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:torch_light/torch_light.dart';
@@ -40,7 +40,7 @@ class AdheeraScreen extends StatefulWidget {
 
 class _AdheeraScreenState extends State<AdheeraScreen> {
   late stt.SpeechToText _speech;
-  late AudioPlayer _audioPlayer;
+  late FlutterTts _tts;
   final Battery _battery = Battery();
 
   bool _isListening = false;
@@ -55,32 +55,41 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   void initState() {
     super.initState();
     _speech = stt.SpeechToText();
-    _audioPlayer = AudioPlayer();
+    _tts = FlutterTts();
+    _initMaleVoice();
+  }
 
-    // App start hote hi Jarvis Male Voice me bolega
-    Future.delayed(const Duration(milliseconds: 700), () {
-      _speakJarvis("Hello Boss! Main Adheera hoon. Bataiye kya kaam karna hai?");
+  // 100% Guaranteed Heavy Human Male Voice Setup
+  Future<void> _initMaleVoice() async {
+    try {
+      await _tts.setEngine("com.google.android.tts");
+    } catch (_) {}
+
+    await _tts.setLanguage("en-IN");
+    await _tts.setPitch(0.80); // Deep, bold male voice (Jarvis style)
+    await _tts.setSpeechRate(0.46); // Natural human talking speed
+
+    // Male voice pack dhund kar select karna
+    try {
+      List<dynamic> voices = await _tts.getVoices;
+      for (var v in voices) {
+        String name = v["name"].toString().toLowerCase();
+        if (name.contains("male") || name.contains("en-in-x-end") || name.contains("en-us-x-sfg")) {
+          await _tts.setVoice({"name": v["name"], "locale": v["locale"]});
+          break;
+        }
+      }
+    } catch (_) {}
+
+    // App start hote hi bolkar swagat karega
+    Future.delayed(const Duration(milliseconds: 600), () {
+      _speak("Hello Boss! Main Adheera hoon. Bataiye kya kaam karna hai?");
     });
   }
 
-  @override
-  void dispose() {
-    _audioPlayer.dispose();
-    super.dispose();
-  }
-
-  // 100% Free Lifetime Built-in Male Voice Engine (Zero API Key)
-  Future<void> _speakJarvis(String text) async {
-    try {
-      final encoded = Uri.encodeComponent(text);
-      // Brian voice: Natural Human Male voice
-      final url = "https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=$encoded";
-      
-      await _audioPlayer.stop();
-      await _audioPlayer.play(UrlSource(url));
-    } catch (e) {
-      print("Voice error: $e");
-    }
+  Future<void> _speak(String text) async {
+    await _tts.stop();
+    await _tts.speak(text);
   }
 
   Future<void> _listen() async {
@@ -114,7 +123,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
 
   Future<void> _launchTargetApp(String packageName, String appName, [String? webUrl]) async {
     setState(() => _adheeraReply = "$appName open kar raha hoon...");
-    await _speakJarvis("Opening $appName");
+    await _speak("Opening $appName");
     try {
       await LaunchApp.openApp(androidPackageName: packageName, openStore: false);
     } catch (_) {
@@ -132,7 +141,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       try {
         await TorchLight.enableTorch();
         setState(() => _adheeraReply = "Flashlight ON kar diya hai.");
-        await _speakJarvis("Flashlight turned on");
+        await _speak("Flashlight turned on");
       } catch (e) {
         setState(() => _adheeraReply = "Torch on karne me dikkat aayi.");
       }
@@ -144,7 +153,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       try {
         await TorchLight.disableTorch();
         setState(() => _adheeraReply = "Flashlight OFF kar diya hai.");
-        await _speakJarvis("Flashlight turned off");
+        await _speak("Flashlight turned off");
       } catch (e) {
         setState(() => _adheeraReply = "Torch band karne me dikkat aayi.");
       }
@@ -155,9 +164,9 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     if (lower.contains("battery") || lower.contains("charging") || lower.contains("charge kitna")) {
       try {
         final level = await _battery.batteryLevel;
-        String msg = "Phone me abhi $level percent battery bachi hai.";
+        String msg = "Boss, battery is at $level percent";
         setState(() => _adheeraReply = msg);
-        await _speakJarvis("Boss, battery is at $level percent");
+        await _speak(msg);
       } catch (e) {
         setState(() => _adheeraReply = "Battery check nahi ho paayi.");
       }
@@ -226,7 +235,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "You are Adheera, an advanced personal male AI assistant like Jarvis. Always reply in English or Hinglish using the Roman alphabet (e.g. 'Haan Boss, main bilkul theek hoon'). Do NOT use Devanagari Hindi characters. Keep your answers direct, short, and respectful."
+              "content": "You are Adheera, a powerful male AI assistant like Jarvis. Reply in English or Hinglish (Roman script, e.g. 'Haan Boss, main bilkul theek hoon'). Do NOT use Devanagari Hindi. Keep answers confident, short, and to the point."
             },
             {"role": "user", "content": prompt}
           ],
@@ -243,8 +252,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           _adheeraReply = reply.trim();
         });
 
-        // Brian Male Voice me bolega
-        await _speakJarvis(reply);
+        await _speak(reply);
       } else {
         setState(() {
           _adheeraReply = "NVIDIA Error (${response.statusCode}): ${response.body}";
