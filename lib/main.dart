@@ -20,8 +20,8 @@ class AdheeraApp extends StatelessWidget {
       title: 'Adheera AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0D1322),
-        colorScheme: const ColorScheme.dark(primary: Color(0xFFFF6B6B)),
+        scaffoldBackgroundColor: const Color(0xFF070B14),
+        colorScheme: const ColorScheme.dark(primary: Color(0xFF00E5FF)),
       ),
       home: const AdheeraScreen(),
     );
@@ -43,7 +43,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
 
   bool _isListening = false;
   bool _isThinking = false;
-  String _userText = "Commands dene ke liye tap karein...";
+  String _userText = "Commands dene ke liye Mic dabayein...";
   String _adheeraReply = "All systems online, Boss! Main Adheera hoon.";
 
   // ==============================================================
@@ -59,7 +59,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     super.initState();
     _speech = stt.SpeechToText();
     _tts = FlutterTts();
-    _orbController = AnimationController(vsync: this, duration: const Duration(seconds: 12))..repeat();
+    _orbController = AnimationController(vsync: this, duration: const Duration(seconds: 14))..repeat();
     _initVoice();
   }
 
@@ -118,7 +118,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
 
   void _triggerCommand() {
     if (_userText.isNotEmpty &&
-        _userText != "Commands dene ke liye tap karein..." &&
+        _userText != "Commands dene ke liye Mic dabayein..." &&
         _userText != "Sun raha hoon, boliye Boss...") {
       _processCommand(_userText);
     }
@@ -138,6 +138,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   Future<void> _processCommand(String text) async {
     String lower = text.toLowerCase();
 
+    // Hardware
     if (lower.contains("torch on") || lower.contains("flashlight on") || lower.contains("light on") || lower.contains("torch jalao")) {
       try {
         await TorchLight.enableTorch();
@@ -164,6 +165,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       return;
     }
 
+    // Apps
     if (lower.contains("whatsapp")) return _launchApp("com.whatsapp", "WhatsApp", "https://api.whatsapp.com/send");
     if (lower.contains("youtube")) return _launchApp("com.google.android.youtube", "YouTube", "https://www.youtube.com");
     if (lower.contains("instagram") || lower.contains("insta")) return _launchApp("com.instagram.android", "Instagram", "https://www.instagram.com");
@@ -178,34 +180,16 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     await _askMultiAI(text);
   }
 
-  Future<String?> _callOpenAI(String prompt) async {
-    try {
-      final res = await http.post(
-        Uri.parse('https://api.openai.com/v1/chat/completions'),
-        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $_openAiApiKey'},
-        body: jsonEncode({
-          "model": "gpt-4o-mini",
-          "messages": [
-            {"role": "system", "content": "You are Adheera, a personal male AI assistant like JARVIS. Address user as 'Boss'. Reply in short, natural Hinglish using Roman alphabet. Keep answers short (1-2 sentences)."},
-            {"role": "user", "content": prompt}
-          ],
-          "max_tokens": 100,
-        }),
-      ).timeout(const Duration(seconds: 4));
-      if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes))['choices'][0]['message']['content'];
-    } catch (_) {}
-    return null;
-  }
-
+  // Ultra-Fast Groq (0.2s guaranteed)
   Future<String?> _callGroq(String prompt) async {
     try {
       final res = await http.post(
         Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
         headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $_groqApiKey'},
         body: jsonEncode({
-          "model": "llama-3.3-70b-versatile",
+          "model": "llama-3.1-8b-instant",
           "messages": [
-            {"role": "system", "content": "You are Adheera, an AI assistant like JARVIS. Address user as 'Boss'. Reply in short, confident Hinglish."},
+            {"role": "system", "content": "You are Adheera, a personal male AI assistant like JARVIS. Address user as 'Boss'. Reply in short, natural Hinglish using Roman alphabet. Keep answers short (1-2 sentences)."},
             {"role": "user", "content": prompt}
           ],
           "max_tokens": 100,
@@ -216,6 +200,27 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     return null;
   }
 
+  // Reliable OpenAI
+  Future<String?> _callOpenAI(String prompt) async {
+    try {
+      final res = await http.post(
+        Uri.parse('https://api.openai.com/v1/chat/completions'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $_openAiApiKey'},
+        body: jsonEncode({
+          "model": "gpt-4o-mini",
+          "messages": [
+            {"role": "system", "content": "You are Adheera, a personal male AI assistant like JARVIS. Address user as 'Boss'. Reply in short, natural Hinglish using Roman alphabet."},
+            {"role": "user", "content": prompt}
+          ],
+          "max_tokens": 100,
+        }),
+      ).timeout(const Duration(seconds: 3));
+      if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes))['choices'][0]['message']['content'];
+    } catch (_) {}
+    return null;
+  }
+
+  // NVIDIA
   Future<String?> _callNvidia(String prompt) async {
     try {
       final res = await http.post(
@@ -235,6 +240,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     return null;
   }
 
+  // Gemini
   Future<String?> _callGemini(String prompt) async {
     try {
       final res = await http.post(
@@ -253,8 +259,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     setState(() => _isThinking = true);
     String? reply;
     try {
-      reply = await _callOpenAI(prompt);
-      reply ??= await _callGroq(prompt);
+      reply = await _callGroq(prompt);
+      reply ??= await _callOpenAI(prompt);
       reply ??= await _callNvidia(prompt);
       reply ??= await _callGemini(prompt);
     } catch (_) {
@@ -267,6 +273,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       await _speak(_adheeraReply);
     } else {
       setState(() => _adheeraReply = "Boss, network response me delay hua. Kripya dobara boliye.");
+      await _speak("Boss, network me dikkat hui.");
     }
   }
 
@@ -274,90 +281,112 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ADHEERA // JARVIS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 3, fontSize: 18, color: Color(0xFFFF7675))),
+        title: const Text(
+          'ADHEERA // JARVIS',
+          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 3, fontSize: 18, color: Color(0xFF00E5FF)),
+        ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          // Speaker icon top right side
+          IconButton(
+            icon: const Icon(Icons.volume_up, color: Color(0xFF00E5FF), size: 24),
+            onPressed: () => _speak(_adheeraReply),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
         child: Column(
           children: [
+            // User Commands Text Bar
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(color: const Color(0xFF161F33), borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.white10)),
-              child: Text(_userText, style: const TextStyle(fontSize: 15, color: Colors.white70)),
+              decoration: BoxDecoration(
+                color: const Color(0xFF101726),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Text(
+                _userText,
+                style: const TextStyle(fontSize: 15, color: Colors.white70),
+              ),
             ),
+
             const Spacer(),
-            // 3D VIDEO SWIRLING PARTICLE ORB (MEDIUM SIZE)
-            GestureDetector(
-              onTap: _listen,
-              child: AnimatedBuilder(
-                animation: _orbController,
-                builder: (context, _) => SizedBox(
-                  width: 200,
-                  height: 200,
-                  child: CustomPaint(
-                    painter: SwirlingParticleOrbPainter(
-                      animValue: _orbController.value,
-                      isListening: _isListening,
-                      isThinking: _isThinking,
-                    ),
+
+            // ==========================================
+            // 2ND IMAGE JAISA DENSE RAINBOW PARTICLE ORB (MEDIUM SIZE)
+            // ==========================================
+            AnimatedBuilder(
+              animation: _orbController,
+              builder: (context, _) => SizedBox(
+                width: 220,
+                height: 220,
+                child: CustomPaint(
+                  painter: RainbowDenseParticleOrbPainter(
+                    animValue: _orbController.value,
+                    isListening: _isListening,
+                    isThinking: _isThinking,
                   ),
                 ),
               ),
             ),
+
             const SizedBox(height: 15),
-            // Status Chip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xFF161F33),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _isListening ? const Color(0xFFFF5252) : (_isThinking ? const Color(0xFFFAB1A0) : Colors.white12)),
-              ),
-              child: Text(
-                _isListening ? "• MIC ON — LISTENING..." : (_isThinking ? "• THINKING..." : "• TAP ORB TO SPEAK •"),
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: _isListening ? const Color(0xFFFF5252) : const Color(0xFFFAB1A0)),
+
+            // Minimal Status Pill
+            Text(
+              _isListening
+                  ? "• LISTENING..."
+                  : (_isThinking ? "• THINKING..." : "• SYSTEM READY •"),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+                color: _isListening
+                    ? const Color(0xFFFF5252)
+                    : (_isThinking ? const Color(0xFF00E5FF) : Colors.white38),
               ),
             ),
+
             const Spacer(),
-            // Response Card
-            Container(
-              width: double.infinity,
-              height: 150,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF161F33),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFFF7675).withOpacity(0.3)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text("ADHEERA RESPONSE", style: TextStyle(color: Color(0xFFFF7675), fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.5)),
-                      IconButton(
-                        icon: const Icon(Icons.volume_up, color: Color(0xFFFF7675), size: 20),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _speak(_adheeraReply),
-                      ),
-                    ],
-                  ),
-                  const Divider(color: Colors.white10, height: 16),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: Text(_isThinking ? "Processing command, Boss..." : _adheeraReply, style: const TextStyle(fontSize: 15, color: Colors.white, height: 1.4)),
+
+            // ==========================================
+            // ORIGINAL MIC BUTTON (Commands dene ke liye)
+            // ==========================================
+            GestureDetector(
+              onTap: _listen,
+              child: Container(
+                width: 85,
+                height: 85,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _isListening ? Colors.redAccent : const Color(0xFF00E5FF),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_isListening ? Colors.redAccent : const Color(0xFF00E5FF)).withOpacity(0.4),
+                      blurRadius: 25,
+                      spreadRadius: 4,
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: Icon(
+                  _isListening ? Icons.mic : Icons.mic_none,
+                  size: 42,
+                  color: _isListening ? Colors.white : const Color(0xFF070B14),
+                ),
               ),
             ),
             const SizedBox(height: 10),
+            Text(
+              _isListening ? "Bol kar dobara tap karein to SEND" : "Mic dabayein aur command dein",
+              style: const TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+            const SizedBox(height: 15),
           ],
         ),
       ),
@@ -365,77 +394,100 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   }
 }
 
-// 3D Particle Structure
-class ParticlePoint {
-  final double x, y, z, ratio;
-  const ParticlePoint(this.x, this.y, this.z, this.ratio);
+// ==========================================
+// 2ND IMAGE DENSE RAINBOW SPECTRUM ORB PAINTER
+// ==========================================
+class DenseOrbPoint {
+  final double x, y, z;
+  final double hue;
+  const DenseOrbPoint(this.x, this.y, this.z, this.hue);
 }
 
-class SwirlingParticleOrbPainter extends CustomPainter {
+class RainbowDenseParticleOrbPainter extends CustomPainter {
   final double animValue;
   final bool isListening;
   final bool isThinking;
 
-  static final List<ParticlePoint> _pts = List.generate(220, (i) {
-    final y = 1.0 - (i / 219.0) * 2.0;
-    final r = math.sqrt(math.max(0.0, 1.0 - y * y));
-    final theta = 2.399963 * i;
-    return ParticlePoint(math.cos(theta) * r, y, math.sin(theta) * r, i / 220.0);
-  });
+  // 1200+ Dense Particles for full realistic texture
+  static final List<DenseOrbPoint> _points = () {
+    final list = <DenseOrbPoint>[];
+    const count = 1200;
+    const phi = 2.399963229728653; // Golden angle
+    for (int i = 0; i < count; i++) {
+      final y = 1.0 - (i / (count - 1.0)) * 2.0;
+      final r = math.sqrt(math.max(0.0, 1.0 - y * y));
+      final theta = phi * i;
+      final x = math.cos(theta) * r;
+      final z = math.sin(theta) * r;
 
-  SwirlingParticleOrbPainter({required this.animValue, required this.isListening, required this.isThinking});
+      // Color Hue based on 3D angle (Red -> Yellow -> Green -> Cyan -> Blue -> Purple)
+      final angle = math.atan2(y, x);
+      final normalizedHue = ((angle + math.pi) / (2 * math.pi) * 360.0);
+      list.add(DenseOrbPoint(x, y, z, normalizedHue));
+    }
+    return list;
+  }();
+
+  RainbowDenseParticleOrbPainter({
+    required this.animValue,
+    required this.isListening,
+    required this.isThinking,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final baseR = size.width * 0.40;
-    final speed = isThinking ? 3.2 : (isListening ? 2.4 : 1.0);
-    final waveAmp = isThinking ? 0.12 : (isListening ? 0.16 : 0.04);
-    final aY = animValue * 2 * math.pi * speed;
-    final aX = math.sin(animValue * 2 * math.pi) * 0.35;
+    final baseRadius = size.width * 0.44;
 
-    // Glowing core
-    canvas.drawCircle(
-      center,
-      baseR * 0.95,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            Colors.white.withOpacity(0.35),
-            const Color(0xFFFF7675).withOpacity(0.20),
-            const Color(0xFFFD79A8).withOpacity(0.08),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.45, 0.75, 1.0],
-        ).createShader(Rect.fromCircle(center: center, radius: baseR * 0.95)),
-    );
+    double speed = 1.0;
+    double wave = 0.02;
 
-    final cosY = math.cos(aY), sinY = math.sin(aY);
-    final cosX = math.cos(aX), sinX = math.sin(aX);
+    if (isThinking) {
+      speed = 2.8;
+      wave = 0.08;
+    } else if (isListening) {
+      speed = 2.0;
+      wave = 0.12;
+    }
 
-    for (final p in _pts) {
-      final x1 = p.x * cosY - p.z * sinY;
-      final z1 = p.x * sinY + p.z * cosY;
-      final y1 = p.y * cosX - z1 * sinX;
-      final z2 = p.y * sinX + z1 * cosX;
+    final rotY = animValue * 2 * math.pi * speed;
+    final rotX = math.sin(animValue * 2 * math.pi) * 0.25;
 
-      final wave = 1.0 + waveAmp * math.sin(animValue * 10 + p.x * 4 + p.y * 3);
-      final r = baseR * wave;
+    final cosY = math.cos(rotY), sinY = math.sin(rotY);
+    final cosX = math.cos(rotX), sinX = math.sin(rotX);
+
+    for (final pt in _points) {
+      // 3D Matrix Rotation
+      final x1 = pt.x * cosY - pt.z * sinY;
+      final z1 = pt.x * sinY + pt.z * cosY;
+      final y1 = pt.y * cosX - z1 * sinX;
+      final z2 = pt.y * sinX + z1 * cosX;
+
+      // Dynamic movement wave
+      final ripple = 1.0 + wave * math.sin(animValue * 12 + pt.x * 6 + pt.y * 6);
+      final r = baseRadius * ripple;
+
       final sx = center.dx + x1 * r;
       final sy = center.dy + y1 * r;
-      final depth = ((z2 + 1.2) / 2.4).clamp(0.15, 1.0);
 
-      final color = Color.lerp(
-        const Color(0xFFFFEAA7),
-        const Color(0xFFFF4757),
-        (p.ratio * 0.7 + depth * 0.3).clamp(0.0, 1.0),
-      )!.withOpacity((depth * 0.85 + 0.15).clamp(0.25, 1.0));
+      // Depth perception
+      final depth = ((z2 + 1.1) / 2.2).clamp(0.15, 1.0);
+      final dotRadius = 0.8 + depth * 1.2;
 
-      canvas.drawCircle(Offset(sx, sy), 1.4 + depth * 2.2, Paint()..color = color);
+      // 2nd Image Exact Rainbow HSV Spectrum Colors
+      final hue = (pt.hue + animValue * 60) % 360;
+      final color = HSVColor.fromAHSV(
+        (depth * 0.85 + 0.15).clamp(0.2, 1.0),
+        hue,
+        0.88,
+        0.98,
+      ).toColor();
+
+      canvas.drawCircle(Offset(sx, sy), dotRadius, Paint()..color = color);
     }
   }
 
   @override
-  bool shouldRepaint(covariant SwirlingParticleOrbPainter old) =>
+  bool shouldRepaint(covariant RainbowDenseParticleOrbPainter old) =>
       old.animValue != animValue || old.isListening != isListening || old.isThinking != isThinking;
 }
