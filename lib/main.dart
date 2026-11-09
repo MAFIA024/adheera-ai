@@ -59,6 +59,11 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     super.initState();
     _speech = stt.SpeechToText();
     _audioPlayer = AudioPlayer();
+
+    // App open hote hi Adheera bolkar swagat karega
+    Future.delayed(const Duration(milliseconds: 700), () {
+      _speakDeepgram("Hello Boss! Main Adheera hoon. Bataiye kya kaam karna hai?");
+    });
   }
 
   @override
@@ -67,10 +72,11 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     super.dispose();
   }
 
-  // Deepgram Ultra-Realistic Male Voice Engine
+  // Deepgram Ultra-Realistic MP3 Male Voice
   Future<void> _speakDeepgram(String text) async {
     try {
-      final url = Uri.parse('https://api.deepgram.com/v1/speak?model=aura-arcas-en');
+      // &encoding=mp3 lagane se Android me awaaz 100% bajti hai
+      final url = Uri.parse('https://api.deepgram.com/v1/speak?model=aura-arcas-en&encoding=mp3');
       final response = await http.post(
         url,
         headers: {
@@ -83,8 +89,16 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       if (response.statusCode == 200) {
         await _audioPlayer.stop();
         await _audioPlayer.play(BytesSource(response.bodyBytes));
+      } else {
+        setState(() {
+          _adheeraReply = "Voice Error (${response.statusCode}): ${response.body}";
+        });
       }
-    } catch (_) {}
+    } catch (e) {
+      setState(() {
+        _adheeraReply = "Audio Error: $e";
+      });
+    }
   }
 
   Future<void> _listen() async {
@@ -116,7 +130,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     }
   }
 
-  // App Launch Helper
   Future<void> _launchTargetApp(String packageName, String appName, [String? webUrl]) async {
     setState(() => _adheeraReply = "$appName open kar raha hoon...");
     await _speakDeepgram("Opening $appName");
@@ -129,18 +142,15 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     }
   }
 
-  // Hardware Controls aur Apps ka Master Handler
   Future<void> _processCommand(String text) async {
     String lower = text.toLowerCase();
-
-    // --- HARDWARE CONTROLS ---
 
     // 1. Flashlight ON
     if (lower.contains("torch on") || lower.contains("flashlight on") || lower.contains("light on") || lower.contains("torch jalao")) {
       try {
         await TorchLight.enableTorch();
         setState(() => _adheeraReply = "Flashlight ON kar diya hai.");
-        await _speakDeepgram("Flashlight is turned on");
+        await _speakDeepgram("Flashlight turned on");
       } catch (e) {
         setState(() => _adheeraReply = "Torch on karne me dikkat aayi.");
       }
@@ -152,7 +162,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       try {
         await TorchLight.disableTorch();
         setState(() => _adheeraReply = "Flashlight OFF kar diya hai.");
-        await _speakDeepgram("Flashlight is turned off");
+        await _speakDeepgram("Flashlight turned off");
       } catch (e) {
         setState(() => _adheeraReply = "Torch band karne me dikkat aayi.");
       }
@@ -165,7 +175,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
         final level = await _battery.batteryLevel;
         String msg = "Phone me abhi $level percent battery bachi hai.";
         setState(() => _adheeraReply = msg);
-        await _speakDeepgram("Battery is at $level percent");
+        await _speakDeepgram("Boss, phone battery is at $level percent");
       } catch (e) {
         setState(() => _adheeraReply = "Battery check nahi ho paayi.");
       }
@@ -214,7 +224,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // --- NORMAL AI CHAT (NVIDIA) ---
+    // --- AI CONVERSATION (NVIDIA LLM) ---
     await _askNvidia(text);
   }
 
@@ -234,12 +244,12 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "Aapka naam Adheera hai. Aap ek smart aur loyal personal male AI assistant hain. User ke sawalon ka chhota, accurate aur natural Hindi/English me answer dein."
+              "content": "You are Adheera, an advanced personal male AI assistant. Always respond in English or Hinglish using the Roman alphabet (e.g., 'Haan boss, main theek hoon'). Do NOT use Devanagari Hindi characters so that the voice engine speaks naturally. Keep your responses short, confident, and direct."
             },
             {"role": "user", "content": prompt}
           ],
           "temperature": 0.6,
-          "max_tokens": 120,
+          "max_tokens": 100,
         }),
       );
 
@@ -251,10 +261,11 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           _adheeraReply = reply.trim();
         });
 
+        // Bolkar answer dega
         await _speakDeepgram(reply);
       } else {
         setState(() {
-          _adheeraReply = "Error (${response.statusCode}): ${response.body}";
+          _adheeraReply = "NVIDIA Error (${response.statusCode}): ${response.body}";
         });
       }
     } catch (e) {
