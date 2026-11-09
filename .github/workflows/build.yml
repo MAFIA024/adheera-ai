@@ -31,11 +31,10 @@ jobs:
           flutter pub add http speech_to_text flutter_tts url_launcher
           cp ../lib/main.dart lib/main.dart
 
-          # Mic aur Internet permissions add karna
+          # Permissions: Mic, Internet, WhatsApp aur YouTube ko allow karna
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"\/>\n    <queries>\n        <intent>\n            <action android:name="android.speech.RecognitionService" \/>\n        </intent>\n    <\/queries>' $MANIFEST
+          sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"\/>\n    <queries>\n        <package android:name="com.whatsapp" \/>\n        <package android:name="com.google.android.youtube" \/>\n        <intent><action android:name="android.speech.RecognitionService" \/><\/intent>\n        <intent><action android:name="android.intent.action.VIEW" \/><data android:scheme="whatsapp" \/><\/intent>\n        <intent><action android:name="android.intent.action.VIEW" \/><data android:scheme="https" \/><\/intent>\n    <\/queries>' $MANIFEST
 
-          # Speech engine compatibility
           BUILD_GRADLE="android/app/build.gradle"
           if [ -f "$BUILD_GRADLE" ]; then
             sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/g' $BUILD_GRADLE
