@@ -64,10 +64,10 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   Future<void> _initJarvisVoice() async {
     await _tts.awaitSpeakCompletion(true);
     await _tts.setLanguage("hi-IN");
-    await _tts.setPitch(0.82); // Confident deep male tone
-    await _tts.setSpeechRate(0.48); // Natural human talking speed
+    await _tts.setPitch(0.82);
+    await _tts.setSpeechRate(0.50);
 
-    Future.delayed(const Duration(milliseconds: 1000), () {
+    Future.delayed(const Duration(milliseconds: 800), () {
       _speak("All systems online, Boss! Main Adheera hoon. Bataiye kya order hai?");
     });
   }
@@ -78,32 +78,49 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     await _tts.speak(text);
   }
 
+  // FAST MIC SYSTEM: Turant sunna aur turant process karna
   Future<void> _listen() async {
     if (!_isListening) {
       bool available = await _speech.initialize(
         onStatus: (status) {
           if (status == "done" || status == "notListening") {
-            setState(() => _isListening = false);
-            if (_userText.isNotEmpty && _userText != "Mic par tap karke boliye...") {
-              _processCommand(_userText);
+            if (_isListening) {
+              setState(() => _isListening = false);
+              _triggerCommand();
             }
           }
         },
       );
 
       if (available) {
-        setState(() => _isListening = true);
+        setState(() {
+          _isListening = true;
+          _userText = "Sun raha hoon, boliye Boss...";
+        });
+
         _speech.listen(
           onResult: (result) {
             setState(() {
               _userText = result.recognizedWords;
             });
           },
+          pauseFor: const Duration(seconds: 2), // 2 sec silent hote hi auto-send
+          listenFor: const Duration(seconds: 15),
         );
       }
     } else {
+      // User ne mic dobara dabaya -> TURANT SEND KARO
       setState(() => _isListening = false);
-      _speech.stop();
+      await _speech.stop();
+      _triggerCommand();
+    }
+  }
+
+  void _triggerCommand() {
+    if (_userText.isNotEmpty && 
+        _userText != "Mic par tap karke boliye..." && 
+        _userText != "Sun raha hoon, boliye Boss...") {
+      _processCommand(_userText);
     }
   }
 
@@ -130,7 +147,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
         String msg = "Flashlight activate kar di hai, Boss.";
         setState(() => _adheeraReply = msg);
         await _speak(msg);
-      } catch (e) {
+      } catch (_) {
         setState(() => _adheeraReply = "Torch on karne me dikkat aayi.");
       }
       return;
@@ -143,20 +160,20 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
         String msg = "Flashlight band kar di hai, Boss.";
         setState(() => _adheeraReply = msg);
         await _speak(msg);
-      } catch (e) {
+      } catch (_) {
         setState(() => _adheeraReply = "Torch band karne me dikkat aayi.");
       }
       return;
     }
 
-    // 3. Battery Percentage Check
+    // 3. Battery Percentage
     if (lower.contains("battery") || lower.contains("charging") || lower.contains("charge kitna")) {
       try {
         final level = await _battery.batteryLevel;
         String msg = "Boss, battery status $level percent par hai.";
         setState(() => _adheeraReply = msg);
         await _speak(msg);
-      } catch (e) {
+      } catch (_) {
         setState(() => _adheeraReply = "Battery check nahi ho paayi.");
       }
       return;
@@ -204,7 +221,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // --- NVIDIA JARVIS AI BRAIN ---
+    // --- NVIDIA LIGHTNING-FAST CHAT BRAIN ---
     await _askNvidia(text);
   }
 
@@ -220,18 +237,17 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           'Authorization': 'Bearer $_nvidiaApiKey',
         },
         body: jsonEncode({
-          // ACTIVE WORKING NVIDIA MODEL:
-          "model": "meta/llama-3.2-90b-vision-instruct",
+          // LIGHTNING FAST 8B MODEL (Super Quick Response)
+          "model": "meta/llama-3.1-8b-instruct",
           "messages": [
             {
               "role": "system",
-              // JARVIS PERSONALITY PROMPT:
-              "content": "You are Adheera, a personal male AI assistant modeled directly after Tony Stark's JARVIS. Highly intelligent, extremely loyal, calm, and analytical. Always address the user as 'Boss' or 'Sir'. Reply in crisp, natural Hinglish using the Roman alphabet (e.g. 'Haan Boss, main bilkul ready hoon'). Never use Devanagari Hindi characters. Keep answers short (maximum 2-3 sentences), confident, and to the point."
+              "content": "You are Adheera, a personal male AI assistant modeled directly after Tony Stark's JARVIS. Highly intelligent, loyal, calm. Always address user as 'Boss' or 'Sir'. Reply in crisp, natural Hinglish using the Roman alphabet (e.g. 'Haan Boss, main bilkul ready hoon'). Never use Devanagari Hindi characters. Keep answers short (1-2 sentences), confident, and instant."
             },
             {"role": "user", "content": prompt}
           ],
           "temperature": 0.6,
-          "max_tokens": 120,
+          "max_tokens": 80, // Chhota aur fast jawab
         }),
       );
 
@@ -271,7 +287,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            // User Speech Box
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -286,8 +301,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Adheera Jarvis Response Card
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -327,7 +340,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                     Expanded(
                       child: SingleChildScrollView(
                         child: Text(
-                          _isThinking ? "Processing command, Boss..." : _adheeraReply,
+                          _isThinking ? "Fast-thinking, Boss..." : _adheeraReply,
                           style: const TextStyle(fontSize: 17, color: Colors.white, height: 1.5, letterSpacing: 0.3),
                         ),
                       ),
@@ -336,10 +349,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 30),
-
-            // Glowing Mic Button
             GestureDetector(
               onTap: _listen,
               child: Container(
@@ -365,7 +375,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
             ),
             const SizedBox(height: 15),
             Text(
-              _isListening ? "Listening to Boss..." : "Tap to Speak",
+              _isListening ? "Bol kar dobara tap karein to SEND" : "Tap to Speak",
               style: const TextStyle(color: Colors.white60, letterSpacing: 1),
             ),
             const SizedBox(height: 15),
