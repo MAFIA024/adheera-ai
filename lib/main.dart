@@ -48,11 +48,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   String _userText = "Mic par tap karke boliye...";
   String _adheeraReply = "Namaste Boss! Main Adheera hoon. Bataiye kya kaam karna hai?";
 
-  // 1. APNI NVIDIA KEY YAHAN DAALEIN:
+  // APNI NVIDIA KEY YAHAN DAALEIN:
   final String _nvidiaApiKey = "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";
-
-  // 2. APNI DEEPGRAM KEY YAHAN DAALEIN:
-  final String _deepgramApiKey = "fe6f00816fb142fc540cff404f21a7699397da87";
 
   @override
   void initState() {
@@ -60,9 +57,9 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     _speech = stt.SpeechToText();
     _audioPlayer = AudioPlayer();
 
-    // App open hote hi Adheera bolkar swagat karega
+    // App start hote hi Jarvis Male Voice me bolega
     Future.delayed(const Duration(milliseconds: 700), () {
-      _speakDeepgram("Hello Boss! Main Adheera hoon. Bataiye kya kaam karna hai?");
+      _speakJarvis("Hello Boss! Main Adheera hoon. Bataiye kya kaam karna hai?");
     });
   }
 
@@ -72,32 +69,17 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     super.dispose();
   }
 
-  // Deepgram Ultra-Realistic MP3 Male Voice
-  Future<void> _speakDeepgram(String text) async {
+  // 100% Free Lifetime Built-in Male Voice Engine (Zero API Key)
+  Future<void> _speakJarvis(String text) async {
     try {
-      // &encoding=mp3 lagane se Android me awaaz 100% bajti hai
-      final url = Uri.parse('https://api.deepgram.com/v1/speak?model=aura-arcas-en&encoding=mp3');
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Token $_deepgramApiKey',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({"text": text}),
-      );
-
-      if (response.statusCode == 200) {
-        await _audioPlayer.stop();
-        await _audioPlayer.play(BytesSource(response.bodyBytes));
-      } else {
-        setState(() {
-          _adheeraReply = "Voice Error (${response.statusCode}): ${response.body}";
-        });
-      }
+      final encoded = Uri.encodeComponent(text);
+      // Brian voice: Natural Human Male voice
+      final url = "https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=$encoded";
+      
+      await _audioPlayer.stop();
+      await _audioPlayer.play(UrlSource(url));
     } catch (e) {
-      setState(() {
-        _adheeraReply = "Audio Error: $e";
-      });
+      print("Voice error: $e");
     }
   }
 
@@ -132,7 +114,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
 
   Future<void> _launchTargetApp(String packageName, String appName, [String? webUrl]) async {
     setState(() => _adheeraReply = "$appName open kar raha hoon...");
-    await _speakDeepgram("Opening $appName");
+    await _speakJarvis("Opening $appName");
     try {
       await LaunchApp.openApp(androidPackageName: packageName, openStore: false);
     } catch (_) {
@@ -150,7 +132,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       try {
         await TorchLight.enableTorch();
         setState(() => _adheeraReply = "Flashlight ON kar diya hai.");
-        await _speakDeepgram("Flashlight turned on");
+        await _speakJarvis("Flashlight turned on");
       } catch (e) {
         setState(() => _adheeraReply = "Torch on karne me dikkat aayi.");
       }
@@ -162,27 +144,27 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       try {
         await TorchLight.disableTorch();
         setState(() => _adheeraReply = "Flashlight OFF kar diya hai.");
-        await _speakDeepgram("Flashlight turned off");
+        await _speakJarvis("Flashlight turned off");
       } catch (e) {
         setState(() => _adheeraReply = "Torch band karne me dikkat aayi.");
       }
       return;
     }
 
-    // 3. Battery Percentage Check
+    // 3. Battery Percentage
     if (lower.contains("battery") || lower.contains("charging") || lower.contains("charge kitna")) {
       try {
         final level = await _battery.batteryLevel;
         String msg = "Phone me abhi $level percent battery bachi hai.";
         setState(() => _adheeraReply = msg);
-        await _speakDeepgram("Boss, phone battery is at $level percent");
+        await _speakJarvis("Boss, battery is at $level percent");
       } catch (e) {
         setState(() => _adheeraReply = "Battery check nahi ho paayi.");
       }
       return;
     }
 
-    // --- APPS OPENING ---
+    // 4. Apps Opening
     if (lower.contains("whatsapp")) {
       await _launchTargetApp("com.whatsapp", "WhatsApp", "https://api.whatsapp.com/send");
       return;
@@ -224,7 +206,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // --- AI CONVERSATION (NVIDIA LLM) ---
+    // --- NVIDIA AI BRAIN ---
     await _askNvidia(text);
   }
 
@@ -244,7 +226,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "You are Adheera, an advanced personal male AI assistant. Always respond in English or Hinglish using the Roman alphabet (e.g., 'Haan boss, main theek hoon'). Do NOT use Devanagari Hindi characters so that the voice engine speaks naturally. Keep your responses short, confident, and direct."
+              "content": "You are Adheera, an advanced personal male AI assistant like Jarvis. Always reply in English or Hinglish using the Roman alphabet (e.g. 'Haan Boss, main bilkul theek hoon'). Do NOT use Devanagari Hindi characters. Keep your answers direct, short, and respectful."
             },
             {"role": "user", "content": prompt}
           ],
@@ -261,8 +243,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           _adheeraReply = reply.trim();
         });
 
-        // Bolkar answer dega
-        await _speakDeepgram(reply);
+        // Brian Male Voice me bolega
+        await _speakJarvis(reply);
       } else {
         setState(() {
           _adheeraReply = "NVIDIA Error (${response.statusCode}): ${response.body}";
