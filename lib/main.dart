@@ -49,7 +49,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   String _adheeraReply = "All systems online, Boss! Main Adheera hoon. Bataiye kya order hai?";
 
   // ==========================================
-  // APNI NVIDIA KEY YAHAN PASTE KAREIN (LINE 46):
+  // APNI NVIDIA KEY YAHAN DAALEIN (LINE 46):
   final String _nvidiaApiKey = "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";
   // ==========================================
 
@@ -64,10 +64,9 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   Future<void> _initJarvisVoice() async {
     await _tts.awaitSpeakCompletion(true);
     await _tts.setLanguage("hi-IN");
-    await _tts.setPitch(0.82); // Deep, calm, confident male tone
+    await _tts.setPitch(0.82); // Confident deep male tone
     await _tts.setSpeechRate(0.48); // Natural human talking speed
 
-    // App open hote hi Jarvis welcome bolega
     Future.delayed(const Duration(milliseconds: 1000), () {
       _speak("All systems online, Boss! Main Adheera hoon. Bataiye kya order hai?");
     });
@@ -154,7 +153,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     if (lower.contains("battery") || lower.contains("charging") || lower.contains("charge kitna")) {
       try {
         final level = await _battery.batteryLevel;
-        String msg = "Boss, system battery status $level percent par hai.";
+        String msg = "Boss, battery status $level percent par hai.";
         setState(() => _adheeraReply = msg);
         await _speak(msg);
       } catch (e) {
@@ -163,7 +162,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // 4. Common Apps Opening
+    // 4. Apps Opening
     if (lower.contains("whatsapp")) {
       await _launchTargetApp("com.whatsapp", "WhatsApp", "https://api.whatsapp.com/send");
       return;
@@ -221,13 +220,13 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           'Authorization': 'Bearer $_nvidiaApiKey',
         },
         body: jsonEncode({
-          // SABSE POWERFUL LLAMA-3.3 70B MODEL:
-          "model": "meta/llama-3.3-70b-instruct",
+          // ACTIVE WORKING NVIDIA MODEL:
+          "model": "meta/llama-3.2-90b-vision-instruct",
           "messages": [
             {
               "role": "system",
-              // ASLI JARVIS PERSONALITY PROMPT:
-              "content": "You are Adheera, a personal male AI assistant modeled directly after Tony Stark's JARVIS. You are extremely intelligent, loyal, calm, analytical, and polite. Always address the user as 'Boss' or 'Sir'. Reply in crisp, natural Hinglish using the Roman alphabet (e.g. 'Haan Boss, main check karta hoon'). Never use Devanagari Hindi characters. Keep answers short (maximum 2-3 sentences), confident, and to the point. Do not give long lectures."
+              // JARVIS PERSONALITY PROMPT:
+              "content": "You are Adheera, a personal male AI assistant modeled directly after Tony Stark's JARVIS. Highly intelligent, extremely loyal, calm, and analytical. Always address the user as 'Boss' or 'Sir'. Reply in crisp, natural Hinglish using the Roman alphabet (e.g. 'Haan Boss, main bilkul ready hoon'). Never use Devanagari Hindi characters. Keep answers short (maximum 2-3 sentences), confident, and to the point."
             },
             {"role": "user", "content": prompt}
           ],
@@ -318,7 +317,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                             Text("ADHEERA PROTOCOL", style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5)),
                           ],
                         ),
-                        // Replay Voice Button
                         IconButton(
                           icon: const Icon(Icons.volume_up, color: Color(0xFF00E5FF), size: 22),
                           onPressed: () => _speak(_adheeraReply),
@@ -341,7 +339,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
 
             const SizedBox(height: 30),
 
-            // Futuristic Glowing Mic Button
+            // Glowing Mic Button
             GestureDetector(
               onTap: _listen,
               child: Container(
