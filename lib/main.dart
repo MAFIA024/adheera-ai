@@ -46,11 +46,13 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   bool _isListening = false;
   bool _isThinking = false;
   String _userText = "Mic par tap karke boliye...";
-  String _adheeraReply = "All systems online, Boss! Main Adheera hoon. Bataiye kya order hai?";
+  String _adheeraReply = "All systems online, Boss! Multi-AI engine connected.";
 
   // ==========================================
-  // APNI NVIDIA KEY YAHAN DAALEIN (LINE 46):
+  // APNI KEYS YAHAN PASTE KAREIN:
+  final String _groqApiKey = "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";
   final String _nvidiaApiKey = "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";
+  final String _geminiApiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";
   // ==========================================
 
   @override
@@ -68,7 +70,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     await _tts.setSpeechRate(0.50);
 
     Future.delayed(const Duration(milliseconds: 800), () {
-      _speak("All systems online, Boss! Main Adheera hoon. Bataiye kya order hai?");
+      _speak("All systems online, Boss! Multi-AI engine active. Bataiye kya order hai?");
     });
   }
 
@@ -78,7 +80,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     await _tts.speak(text);
   }
 
-  // FAST MIC SYSTEM: Turant sunna aur turant process karna
+  // Fast Instant Mic Control
   Future<void> _listen() async {
     if (!_isListening) {
       bool available = await _speech.initialize(
@@ -104,12 +106,11 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
               _userText = result.recognizedWords;
             });
           },
-          pauseFor: const Duration(seconds: 2), // 2 sec silent hote hi auto-send
+          pauseFor: const Duration(seconds: 2),
           listenFor: const Duration(seconds: 15),
         );
       }
     } else {
-      // User ne mic dobara dabaya -> TURANT SEND KARO
       setState(() => _isListening = false);
       await _speech.stop();
       _triggerCommand();
@@ -140,7 +141,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   Future<void> _processCommand(String text) async {
     String lower = text.toLowerCase();
 
-    // 1. Flashlight ON
+    // Flashlight & Battery
     if (lower.contains("torch on") || lower.contains("flashlight on") || lower.contains("light on") || lower.contains("torch jalao")) {
       try {
         await TorchLight.enableTorch();
@@ -153,7 +154,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // 2. Flashlight OFF
     if (lower.contains("torch off") || lower.contains("flashlight off") || lower.contains("light off") || lower.contains("torch band")) {
       try {
         await TorchLight.disableTorch();
@@ -166,7 +166,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // 3. Battery Percentage
     if (lower.contains("battery") || lower.contains("charging") || lower.contains("charge kitna")) {
       try {
         final level = await _battery.batteryLevel;
@@ -179,7 +178,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // 4. Apps Opening
+    // Apps Opening
     if (lower.contains("whatsapp")) {
       await _launchTargetApp("com.whatsapp", "WhatsApp", "https://api.whatsapp.com/send");
       return;
@@ -221,13 +220,44 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // --- NVIDIA LIGHTNING-FAST CHAT BRAIN ---
-    await _askNvidia(text);
+    // --- MULTI-AI AUTO FALLBACK PIPELINE ---
+    await _askMultiAI(text);
   }
 
-  Future<void> _askNvidia(String prompt) async {
-    setState(() => _isThinking = true);
+  // 1. Primary: Groq (Duniya ka sabse fast engine)
+  Future<String?> _callGroq(String prompt) async {
+    try {
+      final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_groqApiKey',
+        },
+        body: jsonEncode({
+          "model": "llama-3.3-70b-versatile",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Adheera, a personal male AI assistant modeled directly after Tony Stark's JARVIS. Highly intelligent, loyal, calm. Always address user as 'Boss' or 'Sir'. Reply in crisp, natural Hinglish using the Roman alphabet (e.g. 'Haan Boss, main check karta hoon'). Never use Devanagari Hindi characters. Keep answers short (1-2 sentences), confident, and instant."
+            },
+            {"role": "user", "content": prompt}
+          ],
+          "temperature": 0.6,
+          "max_tokens": 100,
+        }),
+      );
 
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        return data['choices'][0]['message']['content'];
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // 2. Fallback: NVIDIA NIM
+  Future<String?> _callNvidia(String prompt) async {
     try {
       final url = Uri.parse('https://integrate.api.nvidia.com/v1/chat/completions');
       final response = await http.post(
@@ -237,41 +267,78 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           'Authorization': 'Bearer $_nvidiaApiKey',
         },
         body: jsonEncode({
-          // LIGHTNING FAST 8B MODEL (Super Quick Response)
-          "model": "meta/llama-3.1-8b-instruct",
+          "model": "meta/llama-3.2-90b-vision-instruct",
           "messages": [
             {
               "role": "system",
-              "content": "You are Adheera, a personal male AI assistant modeled directly after Tony Stark's JARVIS. Highly intelligent, loyal, calm. Always address user as 'Boss' or 'Sir'. Reply in crisp, natural Hinglish using the Roman alphabet (e.g. 'Haan Boss, main bilkul ready hoon'). Never use Devanagari Hindi characters. Keep answers short (1-2 sentences), confident, and instant."
+              "content": "You are Adheera, a personal male AI assistant modeled after JARVIS. Address user as 'Boss'. Reply in short, confident Hinglish using the Roman alphabet."
             },
             {"role": "user", "content": prompt}
           ],
           "temperature": 0.6,
-          "max_tokens": 80, // Chhota aur fast jawab
+          "max_tokens": 100,
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
-        String reply = data['choices'][0]['message']['content'];
-
-        setState(() {
-          _adheeraReply = reply.trim();
-        });
-
-        await _speak(reply);
-      } else {
-        setState(() {
-          _adheeraReply = "NVIDIA Error (${response.statusCode}): ${response.body}";
-        });
+        return data['choices'][0]['message']['content'];
       }
-    } catch (e) {
+    } catch (_) {}
+    return null;
+  }
+
+  // 3. Fallback: Google Gemini
+  Future<String?> _callGemini(String prompt) async {
+    try {
+      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "contents": [
+            {
+              "parts": [
+                {"text": "You are Adheera, an AI personal assistant like JARVIS. Answer the user as 'Boss' in short, natural Hinglish using English alphabet: $prompt"}
+              ]
+            }
+          ]
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        return data['candidates'][0]['content']['parts'][0]['text'];
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // Master Fallback Controller
+  Future<void> _askMultiAI(String prompt) async {
+    setState(() => _isThinking = true);
+
+    // Pehle Groq try karega (0.2s ultra fast)
+    String? reply = await _callGroq(prompt);
+
+    // Agar Groq me dikkat aayi toh NVIDIA se puchega
+    reply ??= await _callNvidia(prompt);
+
+    // Agar dono fail huye toh Google Gemini se puchega
+    reply ??= await _callGemini(prompt);
+
+    if (reply != null) {
       setState(() {
-        _adheeraReply = "Network Error: $e";
+        _adheeraReply = reply!.trim();
       });
-    } finally {
-      setState(() => _isThinking = false);
+      await _speak(_adheeraReply);
+    } else {
+      setState(() {
+        _adheeraReply = "Boss, sabhi AI engines busy hain. Kripya check karein.";
+      });
     }
+
+    setState(() => _isThinking = false);
   }
 
   @override
@@ -327,7 +394,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                           children: [
                             Icon(Icons.bolt, color: Color(0xFF00E5FF), size: 18),
                             SizedBox(width: 5),
-                            Text("ADHEERA PROTOCOL", style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5)),
+                            Text("TRIPLE-AI CORE", style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5)),
                           ],
                         ),
                         IconButton(
@@ -340,7 +407,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                     Expanded(
                       child: SingleChildScrollView(
                         child: Text(
-                          _isThinking ? "Fast-thinking, Boss..." : _adheeraReply,
+                          _isThinking ? "Consulting AI Core, Boss..." : _adheeraReply,
                           style: const TextStyle(fontSize: 17, color: Colors.white, height: 1.5, letterSpacing: 0.3),
                         ),
                       ),
