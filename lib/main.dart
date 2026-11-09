@@ -46,14 +46,15 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   bool _isListening = false;
   bool _isThinking = false;
   String _userText = "Mic par tap karke boliye...";
-  String _adheeraReply = "All systems online, Boss! Multi-AI engine connected.";
+  String _adheeraReply = "All systems online, Boss! 4-Core AI Matrix active.";
 
-  // ==========================================
+  // ==============================================================
   // APNI KEYS YAHAN PASTE KAREIN:
-  final String _groqApiKey = "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";
-  final String _nvidiaApiKey = "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";
-  final String _geminiApiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";
-  // ==========================================
+  final String _openAiApiKey = "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"; // OpenAI
+  final String _groqApiKey = "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";           // Groq
+  final String _nvidiaApiKey = "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";     // NVIDIA
+  final String _geminiApiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";    // Google Gemini
+  // ==============================================================
 
   @override
   void initState() {
@@ -70,7 +71,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     await _tts.setSpeechRate(0.50);
 
     Future.delayed(const Duration(milliseconds: 800), () {
-      _speak("All systems online, Boss! Multi-AI engine active. Bataiye kya order hai?");
+      _speak("All systems online, Boss! 4-Core AI Matrix active. Bataiye kya order hai?");
     });
   }
 
@@ -80,7 +81,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     await _tts.speak(text);
   }
 
-  // Fast Instant Mic Control
   Future<void> _listen() async {
     if (!_isListening) {
       bool available = await _speech.initialize(
@@ -141,7 +141,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   Future<void> _processCommand(String text) async {
     String lower = text.toLowerCase();
 
-    // Flashlight & Battery
+    // Hardware Controls
     if (lower.contains("torch on") || lower.contains("flashlight on") || lower.contains("light on") || lower.contains("torch jalao")) {
       try {
         await TorchLight.enableTorch();
@@ -220,11 +220,43 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
       return;
     }
 
-    // --- MULTI-AI AUTO FALLBACK PIPELINE ---
+    // --- 4-CORE MULTI-AI ENGINE ---
     await _askMultiAI(text);
   }
 
-  // 1. Primary: Groq (Duniya ka sabse fast engine)
+  // Core 1: OpenAI (GPT-4o Mini - Ultra Smart & Reliable)
+  Future<String?> _callOpenAI(String prompt) async {
+    try {
+      final url = Uri.parse('https://api.openai.com/v1/chat/completions');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $_openAiApiKey',
+        },
+        body: jsonEncode({
+          "model": "gpt-4o-mini",
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Adheera, a personal male AI assistant modeled after JARVIS. Address user as 'Boss'. Reply in short, natural Hinglish using the Roman alphabet (e.g., 'Haan Boss, main theek hoon'). Never use Devanagari Hindi characters. Keep answers short and direct."
+            },
+            {"role": "user", "content": prompt}
+          ],
+          "temperature": 0.6,
+          "max_tokens": 100,
+        }),
+      ).timeout(const Duration(seconds: 4));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        return data['choices'][0]['message']['content'];
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  // Core 2: Groq (0.2s Ultra Fast)
   Future<String?> _callGroq(String prompt) async {
     try {
       final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
@@ -239,14 +271,14 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "You are Adheera, a personal male AI assistant modeled directly after Tony Stark's JARVIS. Highly intelligent, loyal, calm. Always address user as 'Boss' or 'Sir'. Reply in crisp, natural Hinglish using the Roman alphabet (e.g. 'Haan Boss, main check karta hoon'). Never use Devanagari Hindi characters. Keep answers short (1-2 sentences), confident, and instant."
+              "content": "You are Adheera, a personal male AI assistant modeled after JARVIS. Address user as 'Boss'. Reply in short, confident Hinglish using Roman alphabet."
             },
             {"role": "user", "content": prompt}
           ],
           "temperature": 0.6,
           "max_tokens": 100,
         }),
-      );
+      ).timeout(const Duration(seconds: 3));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -256,7 +288,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     return null;
   }
 
-  // 2. Fallback: NVIDIA NIM
+  // Core 3: NVIDIA NIM
   Future<String?> _callNvidia(String prompt) async {
     try {
       final url = Uri.parse('https://integrate.api.nvidia.com/v1/chat/completions');
@@ -271,14 +303,14 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "messages": [
             {
               "role": "system",
-              "content": "You are Adheera, a personal male AI assistant modeled after JARVIS. Address user as 'Boss'. Reply in short, confident Hinglish using the Roman alphabet."
+              "content": "You are Adheera, an AI personal assistant like JARVIS. Address user as 'Boss'. Reply in short Hinglish."
             },
             {"role": "user", "content": prompt}
           ],
           "temperature": 0.6,
           "max_tokens": 100,
         }),
-      );
+      ).timeout(const Duration(seconds: 3));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -288,7 +320,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     return null;
   }
 
-  // 3. Fallback: Google Gemini
+  // Core 4: Google Gemini
   Future<String?> _callGemini(String prompt) async {
     try {
       final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey');
@@ -299,12 +331,12 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           "contents": [
             {
               "parts": [
-                {"text": "You are Adheera, an AI personal assistant like JARVIS. Answer the user as 'Boss' in short, natural Hinglish using English alphabet: $prompt"}
+                {"text": "You are Adheera, an AI like JARVIS. Answer user as 'Boss' in short Hinglish: $prompt"}
               ]
             }
           ]
         }),
-      );
+      ).timeout(const Duration(seconds: 3));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -314,31 +346,39 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     return null;
   }
 
-  // Master Fallback Controller
+  // Master Failover Controller (Screen kabhi freeze nahi hogi)
   Future<void> _askMultiAI(String prompt) async {
     setState(() => _isThinking = true);
+    String? reply;
 
-    // Pehle Groq try karega (0.2s ultra fast)
-    String? reply = await _callGroq(prompt);
+    try {
+      // 1. Pehle OpenAI try karega (Sabse best & reliable)
+      reply = await _callOpenAI(prompt);
 
-    // Agar Groq me dikkat aayi toh NVIDIA se puchega
-    reply ??= await _callNvidia(prompt);
+      // 2. Agar OpenAI fail hua, toh Groq
+      reply ??= await _callGroq(prompt);
 
-    // Agar dono fail huye toh Google Gemini se puchega
-    reply ??= await _callGemini(prompt);
+      // 3. Agar Groq fail hua, toh NVIDIA
+      reply ??= await _callNvidia(prompt);
 
-    if (reply != null) {
+      // 4. Agar teeno fail huye, toh Google Gemini
+      reply ??= await _callGemini(prompt);
+    } catch (_) {
+    } finally {
+      // Is block se screen kabhi freeze nahi hogi
+      setState(() => _isThinking = false);
+    }
+
+    if (reply != null && reply.isNotEmpty) {
       setState(() {
         _adheeraReply = reply!.trim();
       });
       await _speak(_adheeraReply);
     } else {
       setState(() {
-        _adheeraReply = "Boss, sabhi AI engines busy hain. Kripya check karein.";
+        _adheeraReply = "Boss, network response me delay hua. Kripya dobara boliye.";
       });
     }
-
-    setState(() => _isThinking = false);
   }
 
   @override
@@ -394,7 +434,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                           children: [
                             Icon(Icons.bolt, color: Color(0xFF00E5FF), size: 18),
                             SizedBox(width: 5),
-                            Text("TRIPLE-AI CORE", style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5)),
+                            Text("QUAD-AI MATRIX", style: TextStyle(color: Color(0xFF00E5FF), fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.5)),
                           ],
                         ),
                         IconButton(
@@ -407,7 +447,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                     Expanded(
                       child: SingleChildScrollView(
                         child: Text(
-                          _isThinking ? "Consulting AI Core, Boss..." : _adheeraReply,
+                          _isThinking ? "Consulting AI Matrix, Boss..." : _adheeraReply,
                           style: const TextStyle(fontSize: 17, color: Colors.white, height: 1.5, letterSpacing: 0.3),
                         ),
                       ),
