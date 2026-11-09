@@ -44,8 +44,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   String _userText = "Mic par tap karke boliye...";
   String _adheeraReply = "Namaste! Main Adheera hoon. Main aapki kya madad kar sakti hoon?";
 
-  // NVIDIA API Key GitHub Secret se compile time par aayegi
-  final String _nvidiaApiKey = const String.fromEnvironment("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");
+  // APNI NVIDIA KEY YAHAN DAALEIN:
+  final String _nvidiaApiKey = "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";
 
   @override
   void initState() {
@@ -56,9 +56,13 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
   }
 
   Future<void> _initVoiceSettings() async {
-    await _tts.setLanguage("hi-IN"); // Hindi / Indian accent
+    await _tts.setLanguage("hi-IN");
     await _tts.setPitch(1.0);
-    await _tts.setSpeechRate(0.9); // Natural speed
+    await _tts.setSpeechRate(0.9);
+  }
+
+  Future<void> _speak(String text) async {
+    await _tts.speak(text);
   }
 
   Future<void> _listen() async {
@@ -68,7 +72,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           if (status == "done" || status == "notListening") {
             setState(() => _isListening = false);
             if (_userText.isNotEmpty && _userText != "Mic par tap karke boliye...") {
-              _askAdheera(_userText);
+              _processCommand(_userText);
             }
           }
         },
@@ -90,7 +94,37 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
     }
   }
 
-  Future<void> _askAdheera(String prompt) async {
+  // Pehle check karega ki koi direct command hai ya baat karni hai
+  Future<void> _processCommand(String text) async {
+    String lower = text.toLowerCase();
+
+    // 1. YouTube Command
+    if (lower.contains("youtube")) {
+      setState(() => _adheeraReply = "YouTube open kar rahi hoon...");
+      await _speak("YouTube open kar rahi hoon");
+      final uri = Uri.parse("https://www.youtube.com");
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+      return;
+    }
+
+    // 2. WhatsApp Command
+    if (lower.contains("whatsapp")) {
+      setState(() => _adheeraReply = "WhatsApp open kar rahi hoon...");
+      await _speak("WhatsApp open kar rahi hoon");
+      final uri = Uri.parse("whatsapp://send");
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+      return;
+    }
+
+    // 3. Baaki baaton ke liye NVIDIA AI se poochega
+    await _askNvidia(text);
+  }
+
+  Future<void> _askNvidia(String prompt) async {
     setState(() => _isThinking = true);
 
     try {
@@ -102,16 +136,16 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
           'Authorization': 'Bearer $_nvidiaApiKey',
         },
         body: jsonEncode({
-          "model": "meta/llama-3.1-70b-instruct",
+          "model": "meta/llama-3.2-90b-vision-instruct",
           "messages": [
             {
               "role": "system",
-              "content": "Aapka naam Adheera hai. Aap ek loyal, fast aur smart personal AI assistant hain. User se pyaar se Hindi aur Hinglish me baat karein. Agar user bole 'YouTube open karo' toh command 'ACTION:OPEN_YOUTUBE' return karein. Agar 'WhatsApp open karo' bole toh 'ACTION:OPEN_WHATSAPP' return karein. Agar 'Camera open karo' bole toh 'ACTION:OPEN_CAMERA' return karein. Short aur clear answer dein."
+              "content": "Aapka naam Adheera hai. Aap ek pyari, smart aur loyal personal AI assistant hain. User ke sawalon ka chhota, accurate aur sweet Hindi/Hinglish me jawab dein."
             },
             {"role": "user", "content": prompt}
           ],
           "temperature": 0.6,
-          "max_tokens": 200,
+          "max_tokens": 150,
         }),
       );
 
@@ -119,39 +153,22 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
         String reply = data['choices'][0]['message']['content'];
 
-        _handleCommands(reply);
-
-        // Action commands ko speech se remove karna
-        String cleanSpeech = reply
-            .replaceAll(RegExp(r'ACTION:\w+'), '')
-            .trim();
-
         setState(() {
-          _adheeraReply = cleanSpeech;
+          _adheeraReply = reply.trim();
         });
 
-        await _tts.speak(cleanSpeech);
+        await _speak(reply);
       } else {
         setState(() {
-          _adheeraReply = "Error";
+          _adheeraReply = "Server Error (${response.statusCode}): ${response.body}";
         });
       }
     } catch (e) {
       setState(() {
-        _adheeraReply = "Error: $e";
+        _adheeraReply = "Network Error: $e";
       });
     } finally {
       setState(() => _isThinking = false);
-    }
-  }
-
-  void _handleCommands(String response) async {
-    if (response.contains("ACTION:OPEN_YOUTUBE")) {
-      final uri = Uri.parse("https://www.youtube.com");
-      if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else if (response.contains("ACTION:OPEN_WHATSAPP")) {
-      final uri = Uri.parse("whatsapp://send");
-      if (await canLaunchUrl(uri)) launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -168,7 +185,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
         padding: const EdgeInsets.all(20.0),
         child: Column(
           children: [
-            // User Text Card
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -182,8 +198,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // Adheera Reply Card
             Expanded(
               child: Container(
                 width: double.infinity,
@@ -201,10 +215,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 30),
-
-            // Animated Mic Button
             GestureDetector(
               onTap: _listen,
               child: Container(
