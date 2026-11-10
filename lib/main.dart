@@ -33,7 +33,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   String _spokenWords = "";
   Map<String, String> _mem = {};
 
-  // PHONE KI SABHI POPULAR APPS KA DATABASE
   final Map<String, String> _appPackages = {
     "whatsapp": "com.whatsapp",
     "youtube": "com.google.android.youtube",
@@ -60,23 +59,16 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     "paytm": "net.one97.paytm",
     "phonepe": "com.phonepe.app",
     "gpay": "com.google.android.apps.nbu.paisa.user",
-    "google pay": "com.google.android.apps.nbu.paisa.user",
     "amazon": "in.amazon.mShop.android.shopping",
     "flipkart": "com.flipkart.android",
     "playstore": "com.android.vending",
-    "play store": "com.android.vending",
     "gmail": "com.google.android.gm",
     "mail": "com.google.android.gm",
     "maps": "com.google.android.apps.maps",
-    "map": "com.google.android.apps.maps",
-    "clock": "com.google.android.deskclock",
-    "alarm": "com.google.android.deskclock",
-    "contacts": "com.google.android.contacts",
     "dialer": "com.google.android.dialer",
     "phone": "com.google.android.dialer",
     "call": "com.google.android.dialer",
     "messages": "com.google.android.apps.messaging",
-    "message": "com.google.android.apps.messaging",
     "free fire": "com.dts.freefireth",
     "bgmi": "com.pubg.imobile",
   };
@@ -196,7 +188,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     }
   }
 
-  // UNIVERSAL APP LAUNCHER
   Future<bool> _tryLaunchAppByName(String appKey) async {
     String? pkg = _appPackages[appKey];
     if (pkg != null) {
@@ -252,7 +243,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       }
     }
 
-    // 3. UNIVERSAL APPS CHECK: Database me check karega
+    // 3. Universal App Launcher
     for (String key in _appPackages.keys) {
       if (l.contains(key)) {
         bool launched = await _tryLaunchAppByName(key);
@@ -260,17 +251,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       }
     }
 
-    // 4. Agar generic bole "open <xyz>" ya "<xyz> kholo"
-    final openMatch = RegExp(r'(open|kholo|chalao)\s+([a-zA-Z0-9]+)').firstMatch(l);
-    if (openMatch != null) {
-      String target = openMatch.group(2) ?? "";
-      if (target.isNotEmpty) {
-        bool launched = await _tryLaunchAppByName(target);
-        if (launched) return;
-      }
-    }
-
-    // 5. Baaki sab baaton ke liye Vercel Server se poochega
+    // 4. Backend AI Call
     await _askBackend(text);
   }
 
@@ -295,7 +276,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         final data = jsonDecode(utf8.decode(res.bodyBytes));
         String reply = data['reply'] ?? "";
 
-        // Memory Auto-Save check
         final m = RegExp(r'\[MEM:\s*([^=]+)=([^\]]+)\]').firstMatch(reply);
         if (m != null) {
           await _saveMem(m.group(1)!, m.group(2)!);
@@ -347,21 +327,33 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
               child: Text(_userText, style: const TextStyle(fontSize: 14, color: Colors.white70)),
             ),
             const Spacer(),
-            // 100% PERFECT ROUND DENSE RAINBOW ORB
+
+            // ==========================================
+            // IRON MAN EXACT KINETIC ACTION ORB
+            // ==========================================
             AnimatedBuilder(
               animation: _orbCtrl,
               builder: (_, __) => SizedBox(
-                width: 210,
-                height: 210,
-                child: CustomPaint(painter: CompactRoundOrbPainter(anim: _orbCtrl.value, listen: _isListening, think: _isThinking, speak: _isSpeaking)),
+                width: 215,
+                height: 215,
+                child: CustomPaint(
+                  painter: JarvisKineticOrbPainter(
+                    anim: _orbCtrl.value,
+                    listen: _isListening,
+                    think: _isThinking,
+                    speak: _isSpeaking,
+                  ),
+                ),
               ),
             ),
+
             const SizedBox(height: 16),
             Text(
               _isListening ? "• LISTENING..." : (_isThinking ? "• REASONING..." : (_isSpeaking ? "• SPEAKING..." : "• SYSTEM READY •")),
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2, color: _isListening ? const Color(0xFFFF5252) : const Color(0xFF00E5FF)),
             ),
             const Spacer(),
+
             // STABLE MIC BUTTON
             GestureDetector(
               onTap: () {
@@ -401,51 +393,77 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   }
 }
 
-// 100% ROUND COMPACT ORB PAINTER
+// ====================================================================
+// EXACT IRON MAN JARVIS KINETIC ACTION ORB (Rainbow Colors Preserved)
+// ====================================================================
 class DensePoint {
   final double x, y, z, hue;
   const DensePoint(this.x, this.y, this.z, this.hue);
 }
 
-class CompactRoundOrbPainter extends CustomPainter {
+class JarvisKineticOrbPainter extends CustomPainter {
   final double anim;
   final bool listen, think, speak;
 
-  static final List<DensePoint> _pts = List.generate(800, (i) {
-    final y = 1.0 - (i / 799.0) * 2.0;
+  static final List<DensePoint> _pts = List.generate(850, (i) {
+    final y = 1.0 - (i / 849.0) * 2.0;
     final r = math.sqrt(math.max(0.0, 1.0 - y * y));
-    final theta = 2.399963 * i;
+    final theta = 2.399963 * i; // Fibonacci golden ratio
     final x = math.cos(theta) * r, z = math.sin(theta) * r;
     return DensePoint(x, y, z, ((math.atan2(y, x) + math.pi) / (2 * math.pi) * 360));
   });
 
-  CompactRoundOrbPainter({required this.anim, required this.listen, required this.think, required this.speak});
+  JarvisKineticOrbPainter({required this.anim, required this.listen, required this.think, required this.speak});
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final baseR = size.width * 0.44;
-    final pulse = 1.0 + (listen ? 0.04 * math.sin(anim * 18 * math.pi) : (think ? 0.03 * math.sin(anim * 14 * math.pi) : 0.0));
-    final r = baseR * pulse;
-    final spd = think ? 3.6 : (listen ? 2.8 : 1.0);
-    final cSpd = think ? 160.0 : (listen ? 120.0 : 60.0);
-    final aY = anim * 2 * math.pi * spd, aX = 0.15 * math.sin(anim * 2 * math.pi);
+
+    // Command kinetic speed surge (Video style rotation burst)
+    final bool active = listen || think || speak;
+    final double spd = think ? 4.2 : (listen ? 3.4 : (speak ? 2.8 : 1.1));
+    final double cSpd = active ? 150.0 : 55.0;
+
+    // Sonic pulse radial wave (Harmonic breathing)
+    final double pulse = 1.0 + (active ? 0.05 * math.sin(anim * 16 * math.pi) : 0.0);
+
+    final double aY = anim * 2 * math.pi * spd;
+    final double aX = 0.16 * math.sin(anim * 2 * math.pi);
     final cosY = math.cos(aY), sinY = math.sin(aY);
     final cosX = math.cos(aX), sinX = math.sin(aX);
 
     for (final p in _pts) {
+      // 3D Matrix Rotation
       final x1 = p.x * cosY - p.z * sinY;
       final z1 = p.x * sinY + p.z * cosY;
       final y1 = p.y * cosX - z1 * sinX;
       final z2 = p.y * sinX + z1 * cosX;
-      final depth = ((z2 + 1.1) / 2.2).clamp(0.15, 1.0);
-      final dotR = 0.8 + depth * 1.3 + ((listen || speak) ? 0.2 * math.sin(anim * 22 + p.x * 6) : 0.0);
+
+      // Iron Man JARVIS Latitude Wave Ripple (Concentric frequency wave)
+      final double waveFreq = active ? (0.045 * math.sin(p.y * 10.0 - anim * 22.0)) : 0.0;
+      final double r = baseR * (pulse + waveFreq);
+
+      final sx = center.dx + x1 * r;
+      final sy = center.dy + y1 * r;
+
+      // Holographic depth
+      final depth = ((z2 + 1.15) / 2.3).clamp(0.12, 1.0);
+
+      // Micro-frequency particle vibration on commands
+      double dotR = 0.85 + depth * 1.35;
+      if (active) {
+        dotR += 0.35 * math.sin(anim * 28.0 + p.hue * 0.15);
+      }
+
+      // Exact Rainbow Hue flow preserved
       final hue = (p.hue + anim * cSpd) % 360;
-      final col = HSVColor.fromAHSV((depth * 0.85 + 0.15).clamp(0.2, 1.0), hue, 0.88, 0.98).toColor();
-      canvas.drawCircle(Offset(center.dx + x1 * r, center.dy + y1 * r), dotR, Paint()..color = col);
+      final col = HSVColor.fromAHSV((depth * 0.88 + 0.12).clamp(0.2, 1.0), hue, 0.88, 0.98).toColor();
+
+      canvas.drawCircle(Offset(sx, sy), dotR, Paint()..color = col);
     }
   }
 
   @override
-  bool shouldRepaint(covariant CompactRoundOrbPainter old) => true;
+  bool shouldRepaint(covariant JarvisKineticOrbPainter old) => true;
 }
