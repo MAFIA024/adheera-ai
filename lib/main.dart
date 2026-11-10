@@ -43,15 +43,17 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
 
   bool _isListening = false;
   bool _isThinking = false;
-  String _userText = "Commands dene ke liye Mic dabayein...";
+  bool _isSpeaking = false;
+  bool _companionMode = true; // Continuous hands-free talk
+  String _userText = "Baat shuru karne ke liye Mic dabayein...";
   String _adheeraReply = "All systems online, Boss! Main Adheera hoon.";
 
   // ==============================================================
   // APNI KEYS YAHAN PASTE KAREIN (LINES 46-49):
-  final String _openAiApiKey = "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";
-  final String _groqApiKey = "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";
-  final String _nvidiaApiKey = "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";
-  final String _geminiApiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";
+  final String _groqApiKey = "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";           // Groq (Primary 0.2s)
+  final String _openAiApiKey = "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";   // OpenAI Fallback
+  final String _nvidiaApiKey = "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";     // NVIDIA Fallback
+  final String _geminiApiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";    // Gemini Fallback
   // ==============================================================
 
   @override
@@ -60,7 +62,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     _speech = stt.SpeechToText();
     _tts = FlutterTts();
     _orbController = AnimationController(vsync: this, duration: const Duration(seconds: 14))..repeat();
-    _initVoice();
+    _initVoiceAndHandlers();
   }
 
   @override
@@ -69,11 +71,27 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     super.dispose();
   }
 
-  Future<void> _initVoice() async {
-    await _tts.awaitSpeakCompletion(true);
+  Future<void> _initVoiceAndHandlers() async {
     await _tts.setLanguage("hi-IN");
     await _tts.setPitch(0.82);
-    await _tts.setSpeechRate(0.50);
+    await _tts.setSpeechRate(0.52);
+
+    // REAL-TIME AUTO LOOP: Jaise hi Adheera bolna band karega, Mic apne aap open ho jayega!
+    _tts.setCompletionHandler(() {
+      if (mounted) {
+        setState(() => _isSpeaking = false);
+        if (_companionMode) {
+          Future.delayed(const Duration(milliseconds: 350), () {
+            if (!_isListening && !_isThinking) _startListening();
+          });
+        }
+      }
+    });
+
+    _tts.setStartHandler(() {
+      if (mounted) setState(() => _isSpeaking = true);
+    });
+
     Future.delayed(const Duration(milliseconds: 700), () {
       _speak("All systems online, Boss! Main Adheera hoon. Bataiye kya order hai?");
     });
@@ -85,40 +103,44 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     await _tts.speak(text);
   }
 
-  Future<void> _listen() async {
-    if (!_isListening) {
-      bool available = await _speech.initialize(
-        onStatus: (status) {
-          if (status == "done" || status == "notListening") {
-            if (_isListening) {
-              setState(() => _isListening = false);
-              _triggerCommand();
-            }
-          }
-        },
-      );
+  Future<void> _startListening() async {
+    if (_isSpeaking) await _tts.stop();
 
-      if (available) {
-        setState(() {
-          _isListening = true;
-          _userText = "Sun raha hoon, boliye Boss...";
-        });
-        _speech.listen(
-          onResult: (result) => setState(() => _userText = result.recognizedWords),
-          pauseFor: const Duration(seconds: 2),
-          listenFor: const Duration(seconds: 15),
-        );
-      }
-    } else {
-      setState(() => _isListening = false);
-      await _speech.stop();
-      _triggerCommand();
+    bool available = await _speech.initialize(
+      onStatus: (status) {
+        if (status == "done" || status == "notListening") {
+          if (_isListening) {
+            setState(() => _isListening = false);
+            _triggerCommand();
+          }
+        }
+      },
+    );
+
+    if (available) {
+      setState(() {
+        _isListening = true;
+        _userText = "Sun raha hoon, boliye Boss...";
+      });
+
+      // 800ms Super-Fast silence detection (Zero waiting)
+      _speech.listen(
+        onResult: (result) => setState(() => _userText = result.recognizedWords),
+        pauseFor: const Duration(milliseconds: 800),
+        listenFor: const Duration(seconds: 12),
+      );
     }
+  }
+
+  Future<void> _stopListening() async {
+    setState(() => _isListening = false);
+    await _speech.stop();
+    _triggerCommand();
   }
 
   void _triggerCommand() {
     if (_userText.isNotEmpty &&
-        _userText != "Commands dene ke liye Mic dabayein..." &&
+        _userText != "Baat shuru karne ke liye Mic dabayein..." &&
         _userText != "Sun raha hoon, boliye Boss...") {
       _processCommand(_userText);
     }
@@ -138,7 +160,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   Future<void> _processCommand(String text) async {
     String lower = text.toLowerCase();
 
-    // Hardware
+    // Hardware Commands
     if (lower.contains("torch on") || lower.contains("flashlight on") || lower.contains("light on") || lower.contains("torch jalao")) {
       try {
         await TorchLight.enableTorch();
@@ -177,10 +199,10 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     if (lower.contains("spotify") || lower.contains("music")) return _launchApp("com.spotify.music", "Spotify");
     if (lower.contains("facebook")) return _launchApp("com.facebook.katana", "Facebook", "https://www.facebook.com");
 
-    await _askMultiAI(text);
+    await _askFastAI(text);
   }
 
-  // Ultra-Fast Groq
+  // Real-time Ultra Fast Groq Pipeline (0.15s)
   Future<String?> _callGroq(String prompt) async {
     try {
       final res = await http.post(
@@ -189,18 +211,22 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         body: jsonEncode({
           "model": "llama-3.1-8b-instant",
           "messages": [
-            {"role": "system", "content": "You are Adheera, a personal male AI assistant like JARVIS. Address user as 'Boss'. Reply in short, natural Hinglish using Roman alphabet. Keep answers short (1-2 sentences)."},
+            {
+              "role": "system",
+              "content": "You are Adheera, an ultra-fast real-time AI companion like JARVIS. Speak in natural conversational Hinglish using Roman alphabet. Keep replies very short (1 punchy sentence, max 15 words) so it speaks instantly. Address user as 'Boss'."
+            },
             {"role": "user", "content": prompt}
           ],
-          "max_tokens": 100,
+          "max_tokens": 60,
+          "temperature": 0.6,
         }),
       ).timeout(const Duration(seconds: 3));
+
       if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes))['choices'][0]['message']['content'];
     } catch (_) {}
     return null;
   }
 
-  // Reliable OpenAI
   Future<String?> _callOpenAI(String prompt) async {
     try {
       final res = await http.post(
@@ -209,18 +235,18 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         body: jsonEncode({
           "model": "gpt-4o-mini",
           "messages": [
-            {"role": "system", "content": "You are Adheera, a personal male AI assistant like JARVIS. Address user as 'Boss'. Reply in short, natural Hinglish using Roman alphabet."},
+            {"role": "system", "content": "You are Adheera, an AI companion. Answer as 'Boss' in 1 short Hinglish sentence."},
             {"role": "user", "content": prompt}
           ],
-          "max_tokens": 100,
+          "max_tokens": 60,
         }),
       ).timeout(const Duration(seconds: 3));
+
       if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes))['choices'][0]['message']['content'];
     } catch (_) {}
     return null;
   }
 
-  // NVIDIA
   Future<String?> _callNvidia(String prompt) async {
     try {
       final res = await http.post(
@@ -229,33 +255,34 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         body: jsonEncode({
           "model": "meta/llama-3.2-90b-vision-instruct",
           "messages": [
-            {"role": "system", "content": "You are Adheera, an AI assistant like JARVIS. Address user as 'Boss'. Reply in short Hinglish."},
+            {"role": "system", "content": "You are Adheera. Answer as 'Boss' in 1 short Hinglish sentence."},
             {"role": "user", "content": prompt}
           ],
-          "max_tokens": 100,
+          "max_tokens": 60,
         }),
       ).timeout(const Duration(seconds: 3));
+
       if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes))['choices'][0]['message']['content'];
     } catch (_) {}
     return null;
   }
 
-  // Gemini
   Future<String?> _callGemini(String prompt) async {
     try {
       final res = await http.post(
         Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          "contents": [{"parts": [{"text": "You are Adheera, an AI like JARVIS. Answer user as 'Boss' in short Hinglish: $prompt"}]}]
+          "contents": [{"parts": [{"text": "Answer as 'Boss' in 1 short Hinglish sentence: $prompt"}]}]
         }),
       ).timeout(const Duration(seconds: 3));
+
       if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes))['candidates'][0]['content']['parts'][0]['text'];
     } catch (_) {}
     return null;
   }
 
-  Future<void> _askMultiAI(String prompt) async {
+  Future<void> _askFastAI(String prompt) async {
     setState(() => _isThinking = true);
     String? reply;
     try {
@@ -272,8 +299,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       setState(() => _adheeraReply = reply!.trim());
       await _speak(_adheeraReply);
     } else {
-      setState(() => _adheeraReply = "Boss, network response me delay hua. Kripya dobara boliye.");
-      await _speak("Boss, network me dikkat hui.");
+      setState(() => _adheeraReply = "Boss, network me thoda delay hua. Kripya dobara boliye.");
+      await _speak("Boss, dobara boliye.");
     }
   }
 
@@ -282,18 +309,28 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'ADHEERA // JARVIS',
-          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 3, fontSize: 18, color: Color(0xFF00E5FF)),
+          'ADHEERA // COMPANION',
+          style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 3, fontSize: 17, color: Color(0xFF00E5FF)),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
           IconButton(
+            icon: Icon(
+              _companionMode ? Icons.headset_mic : Icons.headset_off,
+              color: _companionMode ? const Color(0xFF00E5FF) : Colors.white24,
+            ),
+            tooltip: "Auto-Companion Mode",
+            onPressed: () {
+              setState(() => _companionMode = !_companionMode);
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.volume_up, color: Color(0xFF00E5FF), size: 24),
             onPressed: () => _speak(_adheeraReply),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
         ],
       ),
       body: Padding(
@@ -316,9 +353,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
 
             const Spacer(),
 
-            // ==========================================
-            // 100% PERFECT ROUND DENSE RAINBOW ORB
-            // ==========================================
+            // 100% PERFECT ROUND DENSE RAINBOW ORB (Sphere Remains Round)
             AnimatedBuilder(
               animation: _orbController,
               builder: (context, _) => SizedBox(
@@ -329,32 +364,41 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
                     animValue: _orbController.value,
                     isListening: _isListening,
                     isThinking: _isThinking,
+                    isSpeaking: _isSpeaking,
                   ),
                 ),
               ),
             ),
 
-            const SizedBox(height: 15),
+            const SizedBox(height: 16),
 
             Text(
               _isListening
                   ? "• LISTENING..."
-                  : (_isThinking ? "• THINKING..." : "• SYSTEM READY •"),
+                  : (_isThinking
+                      ? "• THINKING..."
+                      : (_isSpeaking ? "• ADHEERA SPEAKING..." : "• COMPANION READY •")),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 2,
                 color: _isListening
                     ? const Color(0xFFFF5252)
-                    : (_isThinking ? const Color(0xFF00E5FF) : Colors.white38),
+                    : (_isThinking ? const Color(0xFF00E5FF) : (_isSpeaking ? const Color(0xFF00FF88) : Colors.white38)),
               ),
             ),
 
             const Spacer(),
 
-            // Original Mic Button
+            // Mic / Stop Button
             GestureDetector(
-              onTap: _listen,
+              onTap: () {
+                if (_isListening) {
+                  _stopListening();
+                } else {
+                  _startListening();
+                }
+              },
               child: Container(
                 width: 85,
                 height: 85,
@@ -378,7 +422,9 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
             ),
             const SizedBox(height: 10),
             Text(
-              _isListening ? "Bol kar dobara tap karein to SEND" : "Mic dabayein aur command dein",
+              _companionMode
+                  ? "Auto-Conversation ON (Hands-Free Talk)"
+                  : "Tap Mic to Speak",
               style: const TextStyle(color: Colors.white54, fontSize: 13),
             ),
             const SizedBox(height: 15),
@@ -389,9 +435,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   }
 }
 
-// =======================================================
-// 100% PERFECT ROUND 3D SPHERE ORB (NO SHAPE DEFORMATION)
-// =======================================================
+// 100% PERFECT ROUND RAINBOW ORB (Voice-responsive shimmer without distortion)
 class DenseOrbPoint {
   final double x, y, z;
   final double hue;
@@ -402,6 +446,7 @@ class PerfectlyRoundRainbowOrbPainter extends CustomPainter {
   final double animValue;
   final bool isListening;
   final bool isThinking;
+  final bool isSpeaking;
 
   static final List<DenseOrbPoint> _points = () {
     final list = <DenseOrbPoint>[];
@@ -425,6 +470,7 @@ class PerfectlyRoundRainbowOrbPainter extends CustomPainter {
     required this.animValue,
     required this.isListening,
     required this.isThinking,
+    required this.isSpeaking,
   });
 
   @override
@@ -432,7 +478,6 @@ class PerfectlyRoundRainbowOrbPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final baseRadius = size.width * 0.44;
 
-    // Uniform pulse - pura sphere ek sath dharak (pulse) karega bina shape bigade
     double pulse = 1.0;
     double speed = 1.0;
     double colorSpeed = 60.0;
@@ -445,11 +490,13 @@ class PerfectlyRoundRainbowOrbPainter extends CustomPainter {
       speed = 2.8;
       colorSpeed = 120.0;
       pulse = 1.0 + 0.04 * math.sin(animValue * 18 * math.pi);
+    } else if (isSpeaking) {
+      speed = 2.4;
+      colorSpeed = 100.0;
+      pulse = 1.0 + 0.03 * math.sin(animValue * 12 * math.pi);
     }
 
-    // Radius har particle ke liye bilkul barabar (Strict Round Ball)
-    final r = baseRadius * pulse;
-
+    final r = baseRadius * pulse; // Strictly spherical
     final rotY = animValue * 2 * math.pi * speed;
     final rotX = 0.15 * math.sin(animValue * 2 * math.pi);
 
@@ -467,9 +514,8 @@ class PerfectlyRoundRainbowOrbPainter extends CustomPainter {
 
       final depth = ((z2 + 1.1) / 2.2).clamp(0.15, 1.0);
       
-      // Particle shimmer with voice
       double dotRadius = 0.8 + depth * 1.3;
-      if (isListening) {
+      if (isListening || isSpeaking) {
         dotRadius += 0.22 * math.sin(animValue * 22 + pt.x * 6);
       }
 
@@ -487,5 +533,8 @@ class PerfectlyRoundRainbowOrbPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant PerfectlyRoundRainbowOrbPainter old) =>
-      old.animValue != animValue || old.isListening != isListening || old.isThinking != isThinking;
+      old.animValue != animValue ||
+      old.isListening != isListening ||
+      old.isThinking != isThinking ||
+      old.isSpeaking != isSpeaking;
 }
