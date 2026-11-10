@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -29,13 +30,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
 
   final String _backendUrl = "https://adheera-backend2.vercel.app/api/chat";
 
-  // ==============================================================
-  // APNI ELEVENLABS KEY YAHAN PASTE KAREIN (LINE 35):
-  final String _elevenLabsKey = "sk_cd8b6f68e954e965db548a7cdefbc8cf7be09b1ce8412e6e";
-  // Adam Voice ID (Top-tier deep confident male voice):
-  final String _voiceId = "pNInz6obpgDQGcFmaJgB";
-  // ==============================================================
-
   bool _isSpeechInitialized = false;
   bool _isListening = false, _isThinking = false, _isSpeaking = false, _companion = false;
   String _userText = "Commands dene ke liye Mic dabayein...", _adheeraReply = "All systems online, Boss!";
@@ -58,13 +52,11 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     "setting": "com.android.settings",
     "gallery": "com.google.android.apps.photos",
     "photos": "com.google.android.apps.photos",
-    "photo": "com.google.android.apps.photos",
     "spotify": "com.spotify.music",
     "music": "com.spotify.music",
     "gana": "com.spotify.music",
     "telegram": "org.telegram.messenger",
     "snapchat": "com.snapchat.android",
-    "snap": "com.snapchat.android",
     "paytm": "net.one97.paytm",
     "phonepe": "com.phonepe.app",
     "gpay": "com.google.android.apps.nbu.paisa.user",
@@ -87,7 +79,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     _speech = stt.SpeechToText();
     _tts = FlutterTts();
     _player = AudioPlayer();
-    _orbCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 12))..repeat();
+    _orbCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 14))..repeat();
     _initApp();
   }
 
@@ -105,12 +97,10 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       try { _mem = Map<String, String>.from(jsonDecode(s)); } catch (_) {}
     }
 
-    // Native fallback voice setup
     await _tts.setLanguage("hi-IN");
     await _tts.setPitch(0.82);
     await _tts.setSpeechRate(0.52);
 
-    // Audio complete loop
     _player.onPlayerComplete.listen((_) {
       if (mounted) {
         setState(() => _isSpeaking = false);
@@ -126,7 +116,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     });
 
     _initSpeechEngine();
-    Future.delayed(const Duration(milliseconds: 800), () => _speak("All systems online, Boss! ElevenLabs human voice ready hai."));
+    Future.delayed(const Duration(milliseconds: 800), () => _speak("All systems online, Boss! Private cloud ElevenLabs audio ready hai."));
   }
 
   Future<void> _initSpeechEngine() async {
@@ -148,46 +138,23 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     await _prefs?.setString('adheera_mem', jsonEncode(_mem));
   }
 
-  // ELEVENLABS REAL HUMAN VOICE ENGINE (With Smart Native Fallback)
-  Future<void> _speak(String text) async {
+  // ELEVENLABS CLOUD AUDIO PLAYER (With Native Fallback)
+  Future<void> _speak(String text, [String? base64Audio]) async {
     if (text.isEmpty) return;
     setState(() => _isSpeaking = true);
 
-    bool playedElevenLabs = false;
-
-    // 1. ElevenLabs Call
-    if (_elevenLabsKey.isNotEmpty && !_elevenLabsKey.contains("YAHAN")) {
+    if (base64Audio != null && base64Audio.isNotEmpty) {
       try {
-        final url = Uri.parse('https://api.elevenlabs.io/v1/text-to-speech/$_voiceId');
-        final res = await http.post(
-          url,
-          headers: {
-            'Content-Type': 'application/json',
-            'xi-api-key': _elevenLabsKey.trim(),
-          },
-          body: jsonEncode({
-            "text": text,
-            "model_id": "eleven_multilingual_v2",
-            "voice_settings": {
-              "stability": 0.50,
-              "similarity_boost": 0.80
-            }
-          }),
-        ).timeout(const Duration(seconds: 7));
-
-        if (res.statusCode == 200) {
-          await _player.stop();
-          await _player.play(BytesSource(res.bodyBytes));
-          playedElevenLabs = true;
-        }
+        Uint8List bytes = base64Decode(base64Audio);
+        await _player.stop();
+        await _player.play(BytesSource(bytes));
+        return;
       } catch (_) {}
     }
 
-    // 2. Fallback to Native TTS if ElevenLabs has any issue or limit
-    if (!playedElevenLabs) {
-      await _tts.stop();
-      await _tts.speak(text);
-    }
+    // Fallback to Native TTS
+    await _tts.stop();
+    await _tts.speak(text);
   }
 
   Future<void> _startListen() async {
@@ -301,7 +268,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       }
     }
 
-    // 4. Backend AI Call
+    // 4. Backend AI Call (Text + ElevenLabs Audio ek sath aayega)
     await _askBackend(text);
   }
 
@@ -315,11 +282,12 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         Uri.parse(_backendUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"prompt": prompt, "memory": memoryContext}),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 12));
 
       if (res.statusCode == 200) {
         final data = jsonDecode(utf8.decode(res.bodyBytes));
         String reply = data['reply'] ?? "";
+        String? audioBase64 = data['audio'];
 
         final m = RegExp(r'\[MEM:\s*([^=]+)=([^\]]+)\]').firstMatch(reply);
         if (m != null) {
@@ -328,7 +296,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         }
 
         setState(() => _adheeraReply = reply.trim());
-        await _speak(_adheeraReply);
+        // ElevenLabs Audio play hoga
+        await _speak(_adheeraReply, audioBase64);
       } else {
         setState(() => _adheeraReply = "Server Error (${res.statusCode})");
         await _speak("Boss, server me dikkat hui.");
@@ -373,14 +342,14 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
             ),
             const Spacer(),
 
-            // IRON MAN KINETIC ACTION ORB
+            // EXACT FIRST VIDEO HOLOGRAPHIC JARVIS KINETIC ORB (100% ROUND)
             AnimatedBuilder(
               animation: _orbCtrl,
               builder: (_, __) => SizedBox(
-                width: 215,
-                height: 215,
+                width: 220,
+                height: 220,
                 child: CustomPaint(
-                  painter: JarvisKineticOrbPainter(
+                  painter: ExactJarvisKineticOrbPainter(
                     anim: _orbCtrl.value,
                     listen: _isListening,
                     think: _isThinking,
@@ -397,7 +366,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
             ),
             const Spacer(),
 
-            // STABLE MIC BUTTON
+            // MIC BUTTON
             GestureDetector(
               onTap: () {
                 if (_isListening) {
@@ -436,25 +405,28 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   }
 }
 
-// IRON MAN JARVIS KINETIC ACTION ORB
+// EXACT FIRST VIDEO HOLOGRAPHIC ORB (Strict 100% Round Ball, No Lumps)
 class DensePoint {
-  final double x, y, z, hue;
-  const DensePoint(this.x, this.y, this.z, this.hue);
+  final double x, y, z, hue, seed;
+  const DensePoint(this.x, this.y, this.z, this.hue, this.seed);
 }
 
-class JarvisKineticOrbPainter extends CustomPainter {
+class ExactJarvisKineticOrbPainter extends CustomPainter {
   final double anim;
   final bool listen, think, speak;
 
-  static final List<DensePoint> _pts = List.generate(850, (i) {
-    final y = 1.0 - (i / 849.0) * 2.0;
+  static final List<DensePoint> _pts = List.generate(1200, (i) {
+    final y = 1.0 - (i / 1199.0) * 2.0;
     final r = math.sqrt(math.max(0.0, 1.0 - y * y));
     final theta = 2.399963 * i;
     final x = math.cos(theta) * r, z = math.sin(theta) * r;
-    return DensePoint(x, y, z, ((math.atan2(y, x) + math.pi) / (2 * math.pi) * 360));
+    final angle = math.atan2(y, x);
+    final hue = ((angle + math.pi) / (2 * math.pi) * 360.0);
+    final seed = (i * 137.5) % 100.0;
+    return DensePoint(x, y, z, hue, seed);
   });
 
-  JarvisKineticOrbPainter({required this.anim, required this.listen, required this.think, required this.speak});
+  ExactJarvisKineticOrbPainter({required this.anim, required this.listen, required this.think, required this.speak});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -462,40 +434,54 @@ class JarvisKineticOrbPainter extends CustomPainter {
     final baseR = size.width * 0.44;
 
     final bool active = listen || think || speak;
-    final double spd = think ? 4.2 : (listen ? 3.4 : (speak ? 2.8 : 1.1));
-    final double cSpd = active ? 150.0 : 55.0;
-    final double pulse = 1.0 + (active ? 0.05 * math.sin(anim * 16 * math.pi) : 0.0);
+    final double spd = think ? 3.8 : (listen ? 3.0 : (speak ? 2.6 : 1.0));
+    final double colorSpd = active ? 120.0 : 45.0;
 
-    final double aY = anim * 2 * math.pi * spd;
-    final double aX = 0.16 * math.sin(anim * 2 * math.pi);
-    final cosY = math.cos(aY), sinY = math.sin(aY);
-    final cosX = math.cos(aX), sinX = math.sin(aX);
+    double uniformPulse = 1.0;
+    if (active) {
+      uniformPulse += 0.045 * math.sin(anim * 14 * math.pi) + 0.015 * math.cos(anim * 28 * math.pi);
+    } else {
+      uniformPulse += 0.012 * math.sin(anim * 4 * math.pi);
+    }
+
+    final double currentRadius = baseR * uniformPulse;
+
+    final double rotY = anim * 2 * math.pi * spd;
+    final double rotX = 0.20 * math.sin(anim * 2 * math.pi * 0.8);
+    final double rotZ = 0.08 * math.cos(anim * 2 * math.pi * 0.5);
+
+    final cosY = math.cos(rotY), sinY = math.sin(rotY);
+    final cosX = math.cos(rotX), sinX = math.sin(rotX);
+    final cosZ = math.cos(rotZ), sinZ = math.sin(rotZ);
 
     for (final p in _pts) {
       final x1 = p.x * cosY - p.z * sinY;
       final z1 = p.x * sinY + p.z * cosY;
       final y1 = p.y * cosX - z1 * sinX;
       final z2 = p.y * sinX + z1 * cosX;
+      final x2 = x1 * cosZ - y1 * sinZ;
+      final y2 = x1 * sinZ + y1 * cosZ;
 
-      final double waveFreq = active ? (0.045 * math.sin(p.y * 10.0 - anim * 22.0)) : 0.0;
-      final double r = baseR * (pulse + waveFreq);
+      final sx = center.dx + x2 * currentRadius;
+      final sy = center.dy + y2 * currentRadius;
+      final depth = ((z2 + 1.2) / 2.4).clamp(0.12, 1.0);
 
-      final sx = center.dx + x1 * r;
-      final sy = center.dy + y1 * r;
-      final depth = ((z2 + 1.15) / 2.3).clamp(0.12, 1.0);
-
-      double dotR = 0.85 + depth * 1.35;
+      double dotR = 0.65 + depth * 1.30;
       if (active) {
-        dotR += 0.35 * math.sin(anim * 28.0 + p.hue * 0.15);
+        dotR += 0.20 * math.sin(anim * 24.0 + p.seed);
       }
 
-      final hue = (p.hue + anim * cSpd) % 360;
-      final col = HSVColor.fromAHSV((depth * 0.88 + 0.12).clamp(0.2, 1.0), hue, 0.88, 0.98).toColor();
+      final hue = (p.hue + anim * colorSpd) % 360;
+      double opacity = (depth * 0.88 + 0.12).clamp(0.18, 1.0);
+      if (active) {
+        opacity = (opacity * (0.85 + 0.15 * math.sin(anim * 30.0 + p.seed))).clamp(0.15, 1.0);
+      }
 
+      final col = HSVColor.fromAHSV(opacity, hue, 0.88, 0.98).toColor();
       canvas.drawCircle(Offset(sx, sy), dotR, Paint()..color = col);
     }
   }
 
   @override
-  bool shouldRepaint(covariant JarvisKineticOrbPainter old) => true;
+  bool shouldRepaint(covariant ExactJarvisKineticOrbPainter old) => true;
 }
