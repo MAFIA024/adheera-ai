@@ -24,14 +24,15 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Configure App, Hardware & Permissions
+      - name: Configure App, Hardware & Memory Engine
         run: |
           flutter create --org com.adheera --project-name adheera_app app
           cd app
-          flutter pub add http speech_to_text flutter_tts external_app_launcher url_launcher torch_light battery_plus
+          # Packages: Audio, Voice, Hardware, Apps, aur Persistent Long-Term Memory
+          flutter pub add http speech_to_text flutter_tts external_app_launcher url_launcher torch_light battery_plus shared_preferences
           cp ../lib/main.dart lib/main.dart
 
-          # TTS_SERVICE, Mic, Flashlight aur Android 11+ Voice Engine unlock
+          # Permissions
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.RECORD_AUDIO"\/>\n    <uses-permission android:name="android.permission.CAMERA"\/>\n    <uses-permission android:name="android.permission.FLASHLIGHT"\/>\n    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"\/>\n    <queries>\n        <intent><action android:name="android.intent.action.TTS_SERVICE" \/><\/intent>\n        <intent><action android:name="android.speech.RecognitionService" \/><\/intent>\n        <intent><action android:name="android.intent.action.MAIN" \/><\/intent>\n    <\/queries>' $MANIFEST
 
