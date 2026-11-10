@@ -8,6 +8,7 @@ import 'package:external_app_launcher/external_app_launcher.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:torch_light/torch_light.dart';
 import 'package:battery_plus/battery_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() => runApp(const AdheeraApp());
 
@@ -17,7 +18,7 @@ class AdheeraApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Adheera AI',
+      title: 'Adheera AI Agent',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF070B14),
@@ -40,20 +41,24 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   late FlutterTts _tts;
   final Battery _battery = Battery();
   late AnimationController _orbController;
+  SharedPreferences? _prefs;
 
   bool _isListening = false;
   bool _isThinking = false;
   bool _isSpeaking = false;
-  bool _companionMode = true; // Continuous hands-free talk
-  String _userText = "Baat shuru karne ke liye Mic dabayein...";
-  String _adheeraReply = "All systems online, Boss! Main Adheera hoon.";
+  bool _companionMode = true;
+  String _userText = "Commands dene ke liye Mic dabayein...";
+  String _adheeraReply = "All systems online, Boss! Autonomous Agent active.";
+  
+  // Long-Term Memory Storage
+  Map<String, String> _longTermMemory = {};
 
   // ==============================================================
-  // APNI KEYS YAHAN PASTE KAREIN (LINES 46-49):
-  final String _groqApiKey = "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";           // Groq (Primary 0.2s)
-  final String _openAiApiKey = "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";   // OpenAI Fallback
-  final String _nvidiaApiKey = "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";     // NVIDIA Fallback
-  final String _geminiApiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";    // Gemini Fallback
+  // APNI KEYS YAHAN PASTE KAREIN (LINES 47-50):
+  final String _groqApiKey = "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";           // Fast LLM (0.2s)
+  final String _openAiApiKey = "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";   // Main Reasoning LLM
+  final String _nvidiaApiKey = "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";     // Alternative Provider
+  final String _geminiApiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";    // Backup LLM
   // ==============================================================
 
   @override
@@ -62,7 +67,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     _speech = stt.SpeechToText();
     _tts = FlutterTts();
     _orbController = AnimationController(vsync: this, duration: const Duration(seconds: 14))..repeat();
-    _initVoiceAndHandlers();
+    _initMemoryAndVoice();
   }
 
   @override
@@ -71,12 +76,20 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     super.dispose();
   }
 
-  Future<void> _initVoiceAndHandlers() async {
+  // Long-Term Memory Initialization
+  Future<void> _initMemoryAndVoice() async {
+    _prefs = await SharedPreferences.getInstance();
+    final savedMem = _prefs?.getString('adheera_memory');
+    if (savedMem != null) {
+      try {
+        _longTermMemory = Map<String, String>.from(jsonDecode(savedMem));
+      } catch (_) {}
+    }
+
     await _tts.setLanguage("hi-IN");
     await _tts.setPitch(0.82);
     await _tts.setSpeechRate(0.52);
 
-    // REAL-TIME AUTO LOOP: Jaise hi Adheera bolna band karega, Mic apne aap open ho jayega!
     _tts.setCompletionHandler(() {
       if (mounted) {
         setState(() => _isSpeaking = false);
@@ -93,8 +106,14 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     });
 
     Future.delayed(const Duration(milliseconds: 700), () {
-      _speak("All systems online, Boss! Main Adheera hoon. Bataiye kya order hai?");
+      _speak("All systems online, Boss! Autonomous Agent aur Long-Term Memory ready hai. Bataiye kya order hai?");
     });
+  }
+
+  // Memory Save Function (Permanent Recall)
+  Future<void> _saveFactToMemory(String key, String value) async {
+    _longTermMemory[key.trim()] = value.trim();
+    await _prefs?.setString('adheera_memory', jsonEncode(_longTermMemory));
   }
 
   Future<void> _speak(String text) async {
@@ -123,7 +142,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         _userText = "Sun raha hoon, boliye Boss...";
       });
 
-      // 800ms Super-Fast silence detection (Zero waiting)
       _speech.listen(
         onResult: (result) => setState(() => _userText = result.recognizedWords),
         pauseFor: const Duration(milliseconds: 800),
@@ -140,12 +158,15 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
 
   void _triggerCommand() {
     if (_userText.isNotEmpty &&
-        _userText != "Baat shuru karne ke liye Mic dabayein..." &&
+        _userText != "Commands dene ke liye Mic dabayein..." &&
         _userText != "Sun raha hoon, boliye Boss...") {
-      _processCommand(_userText);
+      _agentExecute(_userText);
     }
   }
 
+  // ==========================================
+  // AGENT ENGINE: TOOLS EXECUTION
+  // ==========================================
   Future<void> _launchApp(String pkg, String name, [String? url]) async {
     String msg = "$name open kar raha hoon, Boss.";
     setState(() => _adheeraReply = msg);
@@ -157,10 +178,19 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     }
   }
 
-  Future<void> _processCommand(String text) async {
+  Future<void> _searchGoogle(String query) async {
+    String msg = "Google par search kar raha hoon, Boss.";
+    setState(() => _adheeraReply = msg);
+    await _speak(msg);
+    final url = "https://www.google.com/search?q=${Uri.encodeComponent(query)}";
+    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  // Master Agent Dispatcher
+  Future<void> _agentExecute(String text) async {
     String lower = text.toLowerCase();
 
-    // Hardware Commands
+    // Tool 1: Torch
     if (lower.contains("torch on") || lower.contains("flashlight on") || lower.contains("light on") || lower.contains("torch jalao")) {
       try {
         await TorchLight.enableTorch();
@@ -177,6 +207,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       } catch (_) {}
       return;
     }
+
+    // Tool 2: Battery
     if (lower.contains("battery") || lower.contains("charging") || lower.contains("charge kitna")) {
       try {
         final level = await _battery.batteryLevel;
@@ -187,11 +219,17 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       return;
     }
 
-    // Apps
+    // Tool 3: Web Search
+    if (lower.startsWith("search") || lower.contains("google search") || lower.contains("search karo")) {
+      String q = text.replaceAll(RegExp(r'(search|google search|search karo)', caseSensitive: false), '').trim();
+      if (q.isNotEmpty) return _searchGoogle(q);
+    }
+
+    // Tool 4: Applications
     if (lower.contains("whatsapp")) return _launchApp("com.whatsapp", "WhatsApp", "https://api.whatsapp.com/send");
     if (lower.contains("youtube")) return _launchApp("com.google.android.youtube", "YouTube", "https://www.youtube.com");
     if (lower.contains("instagram") || lower.contains("insta")) return _launchApp("com.instagram.android", "Instagram", "https://www.instagram.com");
-    if (lower.contains("chrome") || lower.contains("browser") || lower.contains("google")) return _launchApp("com.android.chrome", "Chrome", "https://www.google.com");
+    if (lower.contains("chrome") || lower.contains("browser")) return _launchApp("com.android.chrome", "Chrome", "https://www.google.com");
     if (lower.contains("camera")) return _launchApp("com.android.camera", "Camera");
     if (lower.contains("calculator") || lower.contains("hisab")) return _launchApp("com.google.android.calculator", "Calculator");
     if (lower.contains("setting")) return _launchApp("com.android.settings", "Settings");
@@ -199,11 +237,27 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     if (lower.contains("spotify") || lower.contains("music")) return _launchApp("com.spotify.music", "Spotify");
     if (lower.contains("facebook")) return _launchApp("com.facebook.katana", "Facebook", "https://www.facebook.com");
 
-    await _askFastAI(text);
+    // Tool 5: Autonomous Dual-LLM with Long-Term Memory
+    await _askAgentWithMemory(text);
   }
 
-  // Real-time Ultra Fast Groq Pipeline (0.15s)
-  Future<String?> _callGroq(String prompt) async {
+  // ==========================================
+  // DUAL-LLM ROUTER + MEMORY REASONING
+  // ==========================================
+  String _buildSystemPrompt() {
+    String memoryContext = _longTermMemory.isEmpty
+        ? "No previous facts recorded."
+        : _longTermMemory.entries.map((e) => "${e.key}: ${e.value}").join(", ");
+
+    return "You are Adheera, an autonomous AI Agent modeled directly after Tony Stark's JARVIS. "
+        "User is 'Boss'. Speak in crisp, natural Hinglish using Roman alphabet (e.g. 'Haan Boss, main yaad rakhunga'). "
+        "LONG-TERM MEMORY ABOUT BOSS: [$memoryContext]. "
+        "INSTRUCTION: If Boss tells you a new fact to remember (like name, birthday, favorites, contacts), "
+        "acknowledge it politely and append '[MEM: key=value]' at the very end of your reply so it gets permanently stored. "
+        "Keep answers short, sharp, and confident (1-2 sentences).";
+  }
+
+  Future<String?> _callGroqFast(String prompt) async {
     try {
       final res = await http.post(
         Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
@@ -211,23 +265,19 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         body: jsonEncode({
           "model": "llama-3.1-8b-instant",
           "messages": [
-            {
-              "role": "system",
-              "content": "You are Adheera, an ultra-fast real-time AI companion like JARVIS. Speak in natural conversational Hinglish using Roman alphabet. Keep replies very short (1 punchy sentence, max 15 words) so it speaks instantly. Address user as 'Boss'."
-            },
+            {"role": "system", "content": _buildSystemPrompt()},
             {"role": "user", "content": prompt}
           ],
-          "max_tokens": 60,
+          "max_tokens": 80,
           "temperature": 0.6,
         }),
       ).timeout(const Duration(seconds: 3));
-
       if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes))['choices'][0]['message']['content'];
     } catch (_) {}
     return null;
   }
 
-  Future<String?> _callOpenAI(String prompt) async {
+  Future<String?> _callOpenAIMain(String prompt) async {
     try {
       final res = await http.post(
         Uri.parse('https://api.openai.com/v1/chat/completions'),
@@ -235,19 +285,18 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         body: jsonEncode({
           "model": "gpt-4o-mini",
           "messages": [
-            {"role": "system", "content": "You are Adheera, an AI companion. Answer as 'Boss' in 1 short Hinglish sentence."},
+            {"role": "system", "content": _buildSystemPrompt()},
             {"role": "user", "content": prompt}
           ],
-          "max_tokens": 60,
+          "max_tokens": 80,
         }),
       ).timeout(const Duration(seconds: 3));
-
       if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes))['choices'][0]['message']['content'];
     } catch (_) {}
     return null;
   }
 
-  Future<String?> _callNvidia(String prompt) async {
+  Future<String?> _callNvidiaBackup(String prompt) async {
     try {
       final res = await http.post(
         Uri.parse('https://integrate.api.nvidia.com/v1/chat/completions'),
@@ -255,51 +304,62 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         body: jsonEncode({
           "model": "meta/llama-3.2-90b-vision-instruct",
           "messages": [
-            {"role": "system", "content": "You are Adheera. Answer as 'Boss' in 1 short Hinglish sentence."},
+            {"role": "system", "content": _buildSystemPrompt()},
             {"role": "user", "content": prompt}
           ],
-          "max_tokens": 60,
+          "max_tokens": 80,
         }),
       ).timeout(const Duration(seconds: 3));
-
       if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes))['choices'][0]['message']['content'];
     } catch (_) {}
     return null;
   }
 
-  Future<String?> _callGemini(String prompt) async {
+  Future<String?> _callGeminiBackup(String prompt) async {
     try {
       final res = await http.post(
         Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$_geminiApiKey'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          "contents": [{"parts": [{"text": "Answer as 'Boss' in 1 short Hinglish sentence: $prompt"}]}]
+          "contents": [{"parts": [{"text": "${_buildSystemPrompt()}\nUser: $prompt"}]}]
         }),
       ).timeout(const Duration(seconds: 3));
-
       if (res.statusCode == 200) return jsonDecode(utf8.decode(res.bodyBytes))['candidates'][0]['content']['parts'][0]['text'];
     } catch (_) {}
     return null;
   }
 
-  Future<void> _askFastAI(String prompt) async {
+  Future<void> _askAgentWithMemory(String prompt) async {
     setState(() => _isThinking = true);
-    String? reply;
+    String? rawReply;
+
     try {
-      reply = await _callGroq(prompt);
-      reply ??= await _callOpenAI(prompt);
-      reply ??= await _callNvidia(prompt);
-      reply ??= await _callGemini(prompt);
+      // Fast LLM First (0.2s) -> Fallback to OpenAI Main -> NVIDIA -> Gemini
+      rawReply = await _callGroqFast(prompt);
+      rawReply ??= await _callOpenAIMain(prompt);
+      rawReply ??= await _callNvidiaBackup(prompt);
+      rawReply ??= await _callGeminiBackup(prompt);
     } catch (_) {
     } finally {
       setState(() => _isThinking = false);
     }
 
-    if (reply != null && reply.isNotEmpty) {
-      setState(() => _adheeraReply = reply!.trim());
+    if (rawReply != null && rawReply.isNotEmpty) {
+      String cleanText = rawReply;
+
+      // Extract & Commit to Long-Term Memory if agent emitted [MEM: key=value]
+      final memMatch = RegExp(r'\[MEM:\s*([^=]+)=([^\]]+)\]').firstMatch(rawReply);
+      if (memMatch != null) {
+        String key = memMatch.group(1)!;
+        String val = memMatch.group(2)!;
+        await _saveFactToMemory(key, val);
+        cleanText = cleanText.replaceAll(memMatch.group(0)!, '').trim();
+      }
+
+      setState(() => _adheeraReply = cleanText.trim());
       await _speak(_adheeraReply);
     } else {
-      setState(() => _adheeraReply = "Boss, network me thoda delay hua. Kripya dobara boliye.");
+      setState(() => _adheeraReply = "Boss, network response me thoda delay hua. Dobara boliye.");
       await _speak("Boss, dobara boliye.");
     }
   }
@@ -309,7 +369,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'ADHEERA // COMPANION',
+          'ADHEERA // AGENT',
           style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 3, fontSize: 17, color: Color(0xFF00E5FF)),
         ),
         centerTitle: true,
@@ -322,9 +382,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
               color: _companionMode ? const Color(0xFF00E5FF) : Colors.white24,
             ),
             tooltip: "Auto-Companion Mode",
-            onPressed: () {
-              setState(() => _companionMode = !_companionMode);
-            },
+            onPressed: () => setState(() => _companionMode = !_companionMode),
           ),
           IconButton(
             icon: const Icon(Icons.volume_up, color: Color(0xFF00E5FF), size: 24),
@@ -353,7 +411,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
 
             const Spacer(),
 
-            // 100% PERFECT ROUND DENSE RAINBOW ORB (Sphere Remains Round)
+            // 100% PERFECT ROUND DENSE RAINBOW ORB
             AnimatedBuilder(
               animation: _orbController,
               builder: (context, _) => SizedBox(
@@ -376,8 +434,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
               _isListening
                   ? "• LISTENING..."
                   : (_isThinking
-                      ? "• THINKING..."
-                      : (_isSpeaking ? "• ADHEERA SPEAKING..." : "• COMPANION READY •")),
+                      ? "• REASONING & MEMORY..."
+                      : (_isSpeaking ? "• ADHEERA SPEAKING..." : "• AGENT READY •")),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -390,7 +448,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
 
             const Spacer(),
 
-            // Mic / Stop Button
+            // Mic Button
             GestureDetector(
               onTap: () {
                 if (_isListening) {
@@ -423,7 +481,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
             const SizedBox(height: 10),
             Text(
               _companionMode
-                  ? "Auto-Conversation ON (Hands-Free Talk)"
+                  ? "Agent Active • Long-Term Memory ON"
                   : "Tap Mic to Speak",
               style: const TextStyle(color: Colors.white54, fontSize: 13),
             ),
@@ -435,7 +493,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   }
 }
 
-// 100% PERFECT ROUND RAINBOW ORB (Voice-responsive shimmer without distortion)
+// 100% PERFECT ROUND RAINBOW ORB
 class DenseOrbPoint {
   final double x, y, z;
   final double hue;
@@ -496,7 +554,7 @@ class PerfectlyRoundRainbowOrbPainter extends CustomPainter {
       pulse = 1.0 + 0.03 * math.sin(animValue * 12 * math.pi);
     }
 
-    final r = baseRadius * pulse; // Strictly spherical
+    final r = baseRadius * pulse;
     final rotY = animValue * 2 * math.pi * speed;
     final rotX = 0.15 * math.sin(animValue * 2 * math.pi);
 
@@ -537,4 +595,3 @@ class PerfectlyRoundRainbowOrbPainter extends CustomPainter {
       old.isListening != isListening ||
       old.isThinking != isThinking ||
       old.isSpeaking != isSpeaking;
-}
