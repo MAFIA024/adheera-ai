@@ -32,7 +32,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   // ==========================================
   // APNI KEYS YAHAN DAALEIN (LINES 33-36):
   final String _groqKey = "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";
-  final String _openAiKey = "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";
+  final String _openAiKey = "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";
   final String _nvidiaKey = "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";
   final String _geminiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";
   // ==========================================
@@ -65,10 +65,20 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     _tts.setCompletionHandler(() {
       if (mounted) {
         setState(() => _isSpeaking = false);
-        if (_companion) Future.delayed(const Duration(milliseconds: 350), () => !_isListening && !_isThinking ? _startListen() : null);
+        if (_companion) {
+          Future.delayed(const Duration(milliseconds: 350), () {
+            if (!_isListening && !_isThinking) {
+              _startListen();
+            }
+          });
+        }
       }
     });
-    _tts.setStartHandler(() => mounted ? setState(() => _isSpeaking = true) : null);
+
+    _tts.setStartHandler(() {
+      if (mounted) setState(() => _isSpeaking = true);
+    });
+
     Future.delayed(const Duration(milliseconds: 700), () => _speak("All systems online, Boss! Agent active hai."));
   }
 
@@ -210,8 +220,14 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(icon: Icon(_companion ? Icons.headset_mic : Icons.headset_off, color: _companion ? const Color(0xFF00E5FF) : Colors.white24), onPressed: () => setState(() => _companion = !_companion)),
-          IconButton(icon: const Icon(Icons.volume_up, color: Color(0xFF00E5FF)), onPressed: () => _speak(_adheeraReply)),
+          IconButton(
+            icon: Icon(_companion ? Icons.headset_mic : Icons.headset_off, color: _companion ? const Color(0xFF00E5FF) : Colors.white24),
+            onPressed: () => setState(() => _companion = !_companion),
+          ),
+          IconButton(
+            icon: const Icon(Icons.volume_up, color: Color(0xFF00E5FF)),
+            onPressed: () => _speak(_adheeraReply),
+          ),
         ],
       ),
       body: Padding(
@@ -240,13 +256,36 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2, color: _isListening ? const Color(0xFFFF5252) : const Color(0xFF00E5FF)),
             ),
             const Spacer(),
+            // FIXED CLEAN ONTAP HANDLER
             GestureDetector(
-              onTap: () => _isListening ? (_speech.stop(), setState(() => _isListening = false), _trigger()) : _startListen(),
+              onTap: () {
+                if (_isListening) {
+                  _speech.stop();
+                  setState(() => _isListening = false);
+                  _trigger();
+                } else {
+                  _startListen();
+                }
+              },
               child: Container(
                 width: 80,
                 height: 80,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: _isListening ? Colors.redAccent : const Color(0xFF00E5FF), boxShadow: [BoxShadow(color: (_isListening ? Colors.redAccent : const Color(0xFF00E5FF)).withOpacity(0.4), blurRadius: 20, spreadRadius: 3)]),
-                child: Icon(_isListening ? Icons.mic : Icons.mic_none, size: 40, color: _isListening ? Colors.white : const Color(0xFF070B14)),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _isListening ? Colors.redAccent : const Color(0xFF00E5FF),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_isListening ? Colors.redAccent : const Color(0xFF00E5FF)).withOpacity(0.4),
+                      blurRadius: 20,
+                      spreadRadius: 3,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _isListening ? Icons.mic : Icons.mic_none,
+                  size: 40,
+                  color: _isListening ? Colors.white : const Color(0xFF070B14),
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -259,7 +298,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   }
 }
 
-// 100% ROUND COMPACT ORB PAINTER (NEVER CUTS OFF)
+// 100% ROUND COMPACT ORB PAINTER
 class DensePoint {
   final double x, y, z, hue;
   const DensePoint(this.x, this.y, this.z, this.hue);
