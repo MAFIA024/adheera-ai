@@ -25,19 +25,14 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   late AnimationController _orbCtrl;
   SharedPreferences? _prefs;
 
+  // AAPKA APNA VERCEL BACKEND URL (No API keys needed in app!):
+  final String _backendUrl = "https://adheera-backend2.vercel.app/api/chat";
+
   bool _isSpeechInitialized = false;
   bool _isListening = false, _isThinking = false, _isSpeaking = false, _companion = false;
-  String _userText = "Commands dene ke liye Mic dabayein...", _adheeraReply = "All systems online, Boss!";
+  String _userText = "Commands dene ke liye Mic dabayein...", _adheeraReply = "All systems online, Boss! Private Server connected.";
   String _spokenWords = "";
   Map<String, String> _mem = {};
-
-  // ==========================================
-  // APNI KEYS YAHAN DAALEIN (LINES 35-38):
-  final String _groqKey = "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";
-  final String _openAiKey = "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";
-  final String _nvidiaKey = "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";
-  final String _geminiKey = "AQ.Ab8RN6Jlec8yVV04Cc8Dxm09aYd0kQN47ct3FVLfS-jOUvkF9w";
-  // ==========================================
 
   @override
   void initState() {
@@ -55,14 +50,12 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   }
 
   Future<void> _initApp() async {
-    // Memory Init
     _prefs = await SharedPreferences.getInstance();
     final s = _prefs?.getString('adheera_mem');
     if (s != null) {
       try { _mem = Map<String, String>.from(jsonDecode(s)); } catch (_) {}
     }
 
-    // TTS Init
     await _tts.setLanguage("hi-IN");
     await _tts.setPitch(0.82);
     await _tts.setSpeechRate(0.52);
@@ -81,10 +74,8 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       if (mounted) setState(() => _isSpeaking = true);
     });
 
-    // Mic Engine ek hi baar stable initialize hoga
     _initSpeechEngine();
-
-    Future.delayed(const Duration(milliseconds: 800), () => _speak("All systems online, Boss! Main ready hoon."));
+    Future.delayed(const Duration(milliseconds: 800), () => _speak("All systems online, Boss! Private cloud server connected. Main ready hoon."));
   }
 
   Future<void> _initSpeechEngine() async {
@@ -114,14 +105,9 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     await _tts.speak(t);
   }
 
-  // STABLE MIC LISTEN (Kabhi achanak band nahi hoga)
   Future<void> _startListen() async {
     if (_isSpeaking) await _tts.stop();
-
-    if (!_isSpeechInitialized) {
-      await _initSpeechEngine();
-    }
-
+    if (!_isSpeechInitialized) await _initSpeechEngine();
     if (!_isSpeechInitialized) {
       setState(() => _userText = "Microphone initialize nahi ho paya.");
       return;
@@ -142,7 +128,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
           });
         },
         listenFor: const Duration(seconds: 25),
-        pauseFor: const Duration(seconds: 3), // 3-second natural human pause
+        pauseFor: const Duration(seconds: 3),
         partialResults: true,
         cancelOnError: false,
       );
@@ -180,7 +166,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   Future<void> _agentAction(String text) async {
     String l = text.toLowerCase();
 
-    // Hardware Commands
+    // Hardware Controls
     if (l.contains("torch on") || l.contains("flashlight on") || l.contains("light on") || l.contains("torch jalao")) {
       try { 
         await TorchLight.enableTorch(); 
@@ -207,7 +193,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       return;
     }
 
-    // Google Web Search
+    // Google Search
     if (l.startsWith("search") || l.contains("google search") || l.contains("search karo")) {
       String q = text.replaceAll(RegExp(r'(search|google search|search karo)', caseSensitive: false), '').trim();
       if (q.isNotEmpty) {
@@ -230,68 +216,50 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     if (l.contains("spotify") || l.contains("music") || l.contains("gana")) return _launch("com.spotify.music", "Spotify");
     if (l.contains("facebook")) return _launch("com.facebook.katana", "Facebook", "https://facebook.com");
 
-    // Dual-LLM & Long-Term Memory
-    await _askDualLLM(text);
+    // Autonomous AI call via your private Vercel backend
+    await _askBackend(text);
   }
 
-  String _sysPrompt() => "You are Adheera, a personal male AI Agent modeled directly after Tony Stark's JARVIS. "
-      "Boss Long-Term Memory: [${_mem.entries.map((e) => "${e.key}:${e.value}").join(", ")}]. "
-      "Always address user as 'Boss'. Reply in short natural Hinglish using Roman alphabet (1-2 sentences). "
-      "If Boss tells you a new fact to remember (e.g. name, favorites, numbers), acknowledge politely and append '[MEM: key=value]' at the end.";
-
-  Future<String?> _callGroq(String p) async {
-    try {
-      final r = await http.post(
-        Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
-        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $_groqKey'},
-        body: jsonEncode({"model": "llama-3.1-8b-instant", "messages": [{"role": "system", "content": _sysPrompt()}, {"role": "user", "content": p}], "max_tokens": 80}),
-      ).timeout(const Duration(seconds: 4));
-      if (r.statusCode == 200) return jsonDecode(utf8.decode(r.bodyBytes))['choices'][0]['message']['content'];
-    } catch (_) {}
-    return null;
-  }
-
-  Future<String?> _callOpenAI(String p) async {
-    try {
-      final r = await http.post(
-        Uri.parse('https://api.openai.com/v1/chat/completions'),
-        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $_openAiKey'},
-        body: jsonEncode({"model": "gpt-4o-mini", "messages": [{"role": "system", "content": _sysPrompt()}, {"role": "user", "content": p}], "max_tokens": 80}),
-      ).timeout(const Duration(seconds: 4));
-      if (r.statusCode == 200) return jsonDecode(utf8.decode(r.bodyBytes))['choices'][0]['message']['content'];
-    } catch (_) {}
-    return null;
-  }
-
-  Future<String?> _callNvidia(String p) async {
-    try {
-      final r = await http.post(
-        Uri.parse('https://integrate.api.nvidia.com/v1/chat/completions'),
-        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $_nvidiaKey'},
-        body: jsonEncode({"model": "meta/llama-3.2-90b-vision-instruct", "messages": [{"role": "system", "content": _sysPrompt()}, {"role": "user", "content": p}], "max_tokens": 80}),
-      ).timeout(const Duration(seconds: 4));
-      if (r.statusCode == 200) return jsonDecode(utf8.decode(r.bodyBytes))['choices'][0]['message']['content'];
-    } catch (_) {}
-    return null;
-  }
-
-  Future<void> _askDualLLM(String prompt) async {
+  // PRIVATE VERCEL BACKEND CALL (Fast, Secure, Zero Key in App)
+  Future<void> _askBackend(String prompt) async {
     setState(() => _isThinking = true);
-    String? res = await _callGroq(prompt) ?? await _callOpenAI(prompt) ?? await _callNvidia(prompt);
-    setState(() => _isThinking = false);
 
-    if (res != null && res.isNotEmpty) {
-      final m = RegExp(r'\[MEM:\s*([^=]+)=([^\]]+)\]').firstMatch(res);
-      if (m != null) {
-        await _saveMem(m.group(1)!, m.group(2)!);
-        res = res.replaceAll(m.group(0)!, '').trim();
+    String memoryContext = _mem.isEmpty
+        ? "None"
+        : _mem.entries.map((e) => "${e.key}: ${e.value}").join(", ");
+
+    try {
+      final res = await http.post(
+        Uri.parse(_backendUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          "prompt": prompt,
+          "memory": memoryContext,
+        }),
+      ).timeout(const Duration(seconds: 8));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(res.bodyBytes));
+        String reply = data['reply'] ?? "";
+
+        // Check for long-term memory update
+        final m = RegExp(r'\[MEM:\s*([^=]+)=([^\]]+)\]').firstMatch(reply);
+        if (m != null) {
+          await _saveMem(m.group(1)!, m.group(2)!);
+          reply = reply.replaceAll(m.group(0)!, '').trim();
+        }
+
+        setState(() => _adheeraReply = reply.trim());
+        await _speak(_adheeraReply);
+      } else {
+        setState(() => _adheeraReply = "Server Error (${res.statusCode})");
+        await _speak("Boss, server response me error aaya.");
       }
-      setState(() => _adheeraReply = res!.trim());
-      await _speak(_adheeraReply);
-    } else {
-      String fallback = "Boss, connection me thoda delay hua. Kripya dobara boliye.";
-      setState(() => _adheeraReply = fallback);
-      await _speak(fallback);
+    } catch (_) {
+      setState(() => _adheeraReply = "Boss, connection me thoda delay hua. Dobara boliye.");
+      await _speak("Boss, connection delay hua. Dobara boliye.");
+    } finally {
+      setState(() => _isThinking = false);
     }
   }
 
@@ -300,7 +268,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     return Scaffold(
       backgroundColor: const Color(0xFF070B14),
       appBar: AppBar(
-        title: const Text('ADHEERA // COMPANION', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 3, fontSize: 16, color: Color(0xFF00E5FF))),
+        title: const Text('ADHEERA // JARVIS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 3, fontSize: 16, color: Color(0xFF00E5FF))),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -338,7 +306,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
             ),
             const SizedBox(height: 16),
             Text(
-              _isListening ? "• LISTENING..." : (_isThinking ? "• REASONING..." : (_isSpeaking ? "• SPEAKING..." : "• COMPANION READY •")),
+              _isListening ? "• LISTENING..." : (_isThinking ? "• REASONING..." : (_isSpeaking ? "• SPEAKING..." : "• SYSTEM READY •")),
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2, color: _isListening ? const Color(0xFFFF5252) : const Color(0xFF00E5FF)),
             ),
             const Spacer(),
