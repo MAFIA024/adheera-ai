@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:external_app_launcher/external_app_launcher.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:torch_light/torch_light.dart';
@@ -21,11 +22,19 @@ class AdheeraScreen extends StatefulWidget {
 class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProviderStateMixin {
   late stt.SpeechToText _speech;
   late FlutterTts _tts;
+  late AudioPlayer _player;
   final Battery _battery = Battery();
   late AnimationController _orbCtrl;
   SharedPreferences? _prefs;
 
   final String _backendUrl = "https://adheera-backend2.vercel.app/api/chat";
+
+  // ==============================================================
+  // APNI ELEVENLABS KEY YAHAN PASTE KAREIN (LINE 35):
+  final String _elevenLabsKey = "sk_cd8b6f68e954e965db548a7cdefbc8cf7be09b1ce8412e6e";
+  // Adam Voice ID (Top-tier deep confident male voice):
+  final String _voiceId = "pNInz6obpgDQGcFmaJgB";
+  // ==============================================================
 
   bool _isSpeechInitialized = false;
   bool _isListening = false, _isThinking = false, _isSpeaking = false, _companion = false;
@@ -63,7 +72,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     "flipkart": "com.flipkart.android",
     "playstore": "com.android.vending",
     "gmail": "com.google.android.gm",
-    "mail": "com.google.android.gm",
     "maps": "com.google.android.apps.maps",
     "dialer": "com.google.android.dialer",
     "phone": "com.google.android.dialer",
@@ -78,6 +86,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     super.initState();
     _speech = stt.SpeechToText();
     _tts = FlutterTts();
+    _player = AudioPlayer();
     _orbCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 12))..repeat();
     _initApp();
   }
@@ -85,6 +94,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   @override
   void dispose() {
     _orbCtrl.dispose();
+    _player.dispose();
     super.dispose();
   }
 
@@ -95,26 +105,28 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       try { _mem = Map<String, String>.from(jsonDecode(s)); } catch (_) {}
     }
 
+    // Native fallback voice setup
     await _tts.setLanguage("hi-IN");
     await _tts.setPitch(0.82);
     await _tts.setSpeechRate(0.52);
 
+    // Audio complete loop
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) {
+        setState(() => _isSpeaking = false);
+        if (_companion) Future.delayed(const Duration(milliseconds: 400), () => !_isListening && !_isThinking ? _startListen() : null);
+      }
+    });
+
     _tts.setCompletionHandler(() {
       if (mounted) {
         setState(() => _isSpeaking = false);
-        if (_companion) {
-          Future.delayed(const Duration(milliseconds: 400), () {
-            if (!_isListening && !_isThinking) _startListen();
-          });
-        }
+        if (_companion) Future.delayed(const Duration(milliseconds: 400), () => !_isListening && !_isThinking ? _startListen() : null);
       }
-    });
-    _tts.setStartHandler(() {
-      if (mounted) setState(() => _isSpeaking = true);
     });
 
     _initSpeechEngine();
-    Future.delayed(const Duration(milliseconds: 800), () => _speak("All systems online, Boss! Main ready hoon."));
+    Future.delayed(const Duration(milliseconds: 800), () => _speak("All systems online, Boss! ElevenLabs human voice ready hai."));
   }
 
   Future<void> _initSpeechEngine() async {
@@ -126,9 +138,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
             _trigger();
           }
         },
-        onError: (_) {
-          if (mounted) setState(() => _isListening = false);
-        },
+        onError: (_) => mounted ? setState(() => _isListening = false) : null,
       );
     } catch (_) {}
   }
@@ -138,14 +148,54 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     await _prefs?.setString('adheera_mem', jsonEncode(_mem));
   }
 
-  Future<void> _speak(String t) async {
-    if (t.isEmpty) return;
-    await _tts.stop();
-    await _tts.speak(t);
+  // ELEVENLABS REAL HUMAN VOICE ENGINE (With Smart Native Fallback)
+  Future<void> _speak(String text) async {
+    if (text.isEmpty) return;
+    setState(() => _isSpeaking = true);
+
+    bool playedElevenLabs = false;
+
+    // 1. ElevenLabs Call
+    if (_elevenLabsKey.isNotEmpty && !_elevenLabsKey.contains("YAHAN")) {
+      try {
+        final url = Uri.parse('https://api.elevenlabs.io/v1/text-to-speech/$_voiceId');
+        final res = await http.post(
+          url,
+          headers: {
+            'Content-Type': 'application/json',
+            'xi-api-key': _elevenLabsKey.trim(),
+          },
+          body: jsonEncode({
+            "text": text,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": {
+              "stability": 0.50,
+              "similarity_boost": 0.80
+            }
+          }),
+        ).timeout(const Duration(seconds: 7));
+
+        if (res.statusCode == 200) {
+          await _player.stop();
+          await _player.play(BytesSource(res.bodyBytes));
+          playedElevenLabs = true;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Fallback to Native TTS if ElevenLabs has any issue or limit
+    if (!playedElevenLabs) {
+      await _tts.stop();
+      await _tts.speak(text);
+    }
   }
 
   Future<void> _startListen() async {
-    if (_isSpeaking) await _tts.stop();
+    if (_isSpeaking) {
+      await _player.stop();
+      await _tts.stop();
+      setState(() => _isSpeaking = false);
+    }
     if (!_isSpeechInitialized) await _initSpeechEngine();
     if (!_isSpeechInitialized) return;
 
@@ -258,18 +308,13 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   Future<void> _askBackend(String prompt) async {
     setState(() => _isThinking = true);
 
-    String memoryContext = _mem.isEmpty
-        ? "None"
-        : _mem.entries.map((e) => "${e.key}: ${e.value}").join(", ");
+    String memoryContext = _mem.isEmpty ? "None" : _mem.entries.map((e) => "${e.key}: ${e.value}").join(", ");
 
     try {
       final res = await http.post(
         Uri.parse(_backendUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          "prompt": prompt,
-          "memory": memoryContext,
-        }),
+        body: jsonEncode({"prompt": prompt, "memory": memoryContext}),
       ).timeout(const Duration(seconds: 10));
 
       if (res.statusCode == 200) {
@@ -328,9 +373,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
             ),
             const Spacer(),
 
-            // ==========================================
-            // IRON MAN EXACT KINETIC ACTION ORB
-            // ==========================================
+            // IRON MAN KINETIC ACTION ORB
             AnimatedBuilder(
               animation: _orbCtrl,
               builder: (_, __) => SizedBox(
@@ -393,9 +436,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   }
 }
 
-// ====================================================================
-// EXACT IRON MAN JARVIS KINETIC ACTION ORB (Rainbow Colors Preserved)
-// ====================================================================
+// IRON MAN JARVIS KINETIC ACTION ORB
 class DensePoint {
   final double x, y, z, hue;
   const DensePoint(this.x, this.y, this.z, this.hue);
@@ -408,7 +449,7 @@ class JarvisKineticOrbPainter extends CustomPainter {
   static final List<DensePoint> _pts = List.generate(850, (i) {
     final y = 1.0 - (i / 849.0) * 2.0;
     final r = math.sqrt(math.max(0.0, 1.0 - y * y));
-    final theta = 2.399963 * i; // Fibonacci golden ratio
+    final theta = 2.399963 * i;
     final x = math.cos(theta) * r, z = math.sin(theta) * r;
     return DensePoint(x, y, z, ((math.atan2(y, x) + math.pi) / (2 * math.pi) * 360));
   });
@@ -420,12 +461,9 @@ class JarvisKineticOrbPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final baseR = size.width * 0.44;
 
-    // Command kinetic speed surge (Video style rotation burst)
     final bool active = listen || think || speak;
     final double spd = think ? 4.2 : (listen ? 3.4 : (speak ? 2.8 : 1.1));
     final double cSpd = active ? 150.0 : 55.0;
-
-    // Sonic pulse radial wave (Harmonic breathing)
     final double pulse = 1.0 + (active ? 0.05 * math.sin(anim * 16 * math.pi) : 0.0);
 
     final double aY = anim * 2 * math.pi * spd;
@@ -434,29 +472,23 @@ class JarvisKineticOrbPainter extends CustomPainter {
     final cosX = math.cos(aX), sinX = math.sin(aX);
 
     for (final p in _pts) {
-      // 3D Matrix Rotation
       final x1 = p.x * cosY - p.z * sinY;
       final z1 = p.x * sinY + p.z * cosY;
       final y1 = p.y * cosX - z1 * sinX;
       final z2 = p.y * sinX + z1 * cosX;
 
-      // Iron Man JARVIS Latitude Wave Ripple (Concentric frequency wave)
       final double waveFreq = active ? (0.045 * math.sin(p.y * 10.0 - anim * 22.0)) : 0.0;
       final double r = baseR * (pulse + waveFreq);
 
       final sx = center.dx + x1 * r;
       final sy = center.dy + y1 * r;
-
-      // Holographic depth
       final depth = ((z2 + 1.15) / 2.3).clamp(0.12, 1.0);
 
-      // Micro-frequency particle vibration on commands
       double dotR = 0.85 + depth * 1.35;
       if (active) {
         dotR += 0.35 * math.sin(anim * 28.0 + p.hue * 0.15);
       }
 
-      // Exact Rainbow Hue flow preserved
       final hue = (p.hue + anim * cSpd) % 360;
       final col = HSVColor.fromAHSV((depth * 0.88 + 0.12).clamp(0.2, 1.0), hue, 0.88, 0.98).toColor();
 
