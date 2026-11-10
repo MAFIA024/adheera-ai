@@ -25,14 +25,61 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   late AnimationController _orbCtrl;
   SharedPreferences? _prefs;
 
-  // AAPKA APNA VERCEL BACKEND URL (No API keys needed in app!):
   final String _backendUrl = "https://adheera-backend2.vercel.app/api/chat";
 
   bool _isSpeechInitialized = false;
   bool _isListening = false, _isThinking = false, _isSpeaking = false, _companion = false;
-  String _userText = "Commands dene ke liye Mic dabayein...", _adheeraReply = "All systems online, Boss! Private Server connected.";
+  String _userText = "Commands dene ke liye Mic dabayein...", _adheeraReply = "All systems online, Boss!";
   String _spokenWords = "";
   Map<String, String> _mem = {};
+
+  // PHONE KI SABHI POPULAR APPS KA DATABASE
+  final Map<String, String> _appPackages = {
+    "whatsapp": "com.whatsapp",
+    "youtube": "com.google.android.youtube",
+    "instagram": "com.instagram.android",
+    "insta": "com.instagram.android",
+    "facebook": "com.facebook.katana",
+    "chrome": "com.android.chrome",
+    "browser": "com.android.chrome",
+    "google": "com.google.android.googlequicksearchbox",
+    "camera": "com.android.camera",
+    "calculator": "com.google.android.calculator",
+    "hisab": "com.google.android.calculator",
+    "settings": "com.android.settings",
+    "setting": "com.android.settings",
+    "gallery": "com.google.android.apps.photos",
+    "photos": "com.google.android.apps.photos",
+    "photo": "com.google.android.apps.photos",
+    "spotify": "com.spotify.music",
+    "music": "com.spotify.music",
+    "gana": "com.spotify.music",
+    "telegram": "org.telegram.messenger",
+    "snapchat": "com.snapchat.android",
+    "snap": "com.snapchat.android",
+    "paytm": "net.one97.paytm",
+    "phonepe": "com.phonepe.app",
+    "gpay": "com.google.android.apps.nbu.paisa.user",
+    "google pay": "com.google.android.apps.nbu.paisa.user",
+    "amazon": "in.amazon.mShop.android.shopping",
+    "flipkart": "com.flipkart.android",
+    "playstore": "com.android.vending",
+    "play store": "com.android.vending",
+    "gmail": "com.google.android.gm",
+    "mail": "com.google.android.gm",
+    "maps": "com.google.android.apps.maps",
+    "map": "com.google.android.apps.maps",
+    "clock": "com.google.android.deskclock",
+    "alarm": "com.google.android.deskclock",
+    "contacts": "com.google.android.contacts",
+    "dialer": "com.google.android.dialer",
+    "phone": "com.google.android.dialer",
+    "call": "com.google.android.dialer",
+    "messages": "com.google.android.apps.messaging",
+    "message": "com.google.android.apps.messaging",
+    "free fire": "com.dts.freefireth",
+    "bgmi": "com.pubg.imobile",
+  };
 
   @override
   void initState() {
@@ -75,7 +122,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     });
 
     _initSpeechEngine();
-    Future.delayed(const Duration(milliseconds: 800), () => _speak("All systems online, Boss! Private cloud server connected. Main ready hoon."));
+    Future.delayed(const Duration(milliseconds: 800), () => _speak("All systems online, Boss! Main ready hoon."));
   }
 
   Future<void> _initSpeechEngine() async {
@@ -108,10 +155,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   Future<void> _startListen() async {
     if (_isSpeaking) await _tts.stop();
     if (!_isSpeechInitialized) await _initSpeechEngine();
-    if (!_isSpeechInitialized) {
-      setState(() => _userText = "Microphone initialize nahi ho paya.");
-      return;
-    }
+    if (!_isSpeechInitialized) return;
 
     _spokenWords = "";
     setState(() {
@@ -152,21 +196,25 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     }
   }
 
-  Future<void> _launch(String pkg, String name, [String? url]) async {
-    String msg = "$name open kar raha hoon, Boss.";
-    setState(() => _adheeraReply = msg);
-    await _speak(msg);
-    try { 
-      await LaunchApp.openApp(androidPackageName: pkg, openStore: false); 
-    } catch (_) { 
-      if (url != null) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication); 
+  // UNIVERSAL APP LAUNCHER
+  Future<bool> _tryLaunchAppByName(String appKey) async {
+    String? pkg = _appPackages[appKey];
+    if (pkg != null) {
+      String msg = "$appKey open kar raha hoon, Boss.";
+      setState(() => _adheeraReply = msg);
+      await _speak(msg);
+      try {
+        await LaunchApp.openApp(androidPackageName: pkg, openStore: false);
+        return true;
+      } catch (_) {}
     }
+    return false;
   }
 
   Future<void> _agentAction(String text) async {
     String l = text.toLowerCase();
 
-    // Hardware Controls
+    // 1. Hardware Commands
     if (l.contains("torch on") || l.contains("flashlight on") || l.contains("light on") || l.contains("torch jalao")) {
       try { 
         await TorchLight.enableTorch(); 
@@ -193,7 +241,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       return;
     }
 
-    // Google Search
+    // 2. Google Search
     if (l.startsWith("search") || l.contains("google search") || l.contains("search karo")) {
       String q = text.replaceAll(RegExp(r'(search|google search|search karo)', caseSensitive: false), '').trim();
       if (q.isNotEmpty) {
@@ -204,23 +252,28 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
       }
     }
 
-    // Apps Launcher
-    if (l.contains("whatsapp")) return _launch("com.whatsapp", "WhatsApp", "https://api.whatsapp.com/send");
-    if (l.contains("youtube")) return _launch("com.google.android.youtube", "YouTube", "https://youtube.com");
-    if (l.contains("instagram") || l.contains("insta")) return _launch("com.instagram.android", "Instagram", "https://instagram.com");
-    if (l.contains("chrome") || l.contains("browser")) return _launch("com.android.chrome", "Chrome", "https://google.com");
-    if (l.contains("camera")) return _launch("com.android.camera", "Camera");
-    if (l.contains("calculator") || l.contains("hisab")) return _launch("com.google.android.calculator", "Calculator");
-    if (l.contains("setting")) return _launch("com.android.settings", "Settings");
-    if (l.contains("photos") || l.contains("gallery")) return _launch("com.google.android.apps.photos", "Gallery");
-    if (l.contains("spotify") || l.contains("music") || l.contains("gana")) return _launch("com.spotify.music", "Spotify");
-    if (l.contains("facebook")) return _launch("com.facebook.katana", "Facebook", "https://facebook.com");
+    // 3. UNIVERSAL APPS CHECK: Database me check karega
+    for (String key in _appPackages.keys) {
+      if (l.contains(key)) {
+        bool launched = await _tryLaunchAppByName(key);
+        if (launched) return;
+      }
+    }
 
-    // Autonomous AI call via your private Vercel backend
+    // 4. Agar generic bole "open <xyz>" ya "<xyz> kholo"
+    final openMatch = RegExp(r'(open|kholo|chalao)\s+([a-zA-Z0-9]+)').firstMatch(l);
+    if (openMatch != null) {
+      String target = openMatch.group(2) ?? "";
+      if (target.isNotEmpty) {
+        bool launched = await _tryLaunchAppByName(target);
+        if (launched) return;
+      }
+    }
+
+    // 5. Baaki sab baaton ke liye Vercel Server se poochega
     await _askBackend(text);
   }
 
-  // PRIVATE VERCEL BACKEND CALL (Fast, Secure, Zero Key in App)
   Future<void> _askBackend(String prompt) async {
     setState(() => _isThinking = true);
 
@@ -236,13 +289,13 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
           "prompt": prompt,
           "memory": memoryContext,
         }),
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 10));
 
       if (res.statusCode == 200) {
         final data = jsonDecode(utf8.decode(res.bodyBytes));
         String reply = data['reply'] ?? "";
 
-        // Check for long-term memory update
+        // Memory Auto-Save check
         final m = RegExp(r'\[MEM:\s*([^=]+)=([^\]]+)\]').firstMatch(reply);
         if (m != null) {
           await _saveMem(m.group(1)!, m.group(2)!);
@@ -253,7 +306,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         await _speak(_adheeraReply);
       } else {
         setState(() => _adheeraReply = "Server Error (${res.statusCode})");
-        await _speak("Boss, server response me error aaya.");
+        await _speak("Boss, server me dikkat hui.");
       }
     } catch (_) {
       setState(() => _adheeraReply = "Boss, connection me thoda delay hua. Dobara boliye.");
@@ -275,7 +328,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         actions: [
           IconButton(
             icon: Icon(_companion ? Icons.headset_mic : Icons.headset_off, color: _companion ? const Color(0xFF00E5FF) : Colors.white24),
-            tooltip: "Auto Companion Mode",
             onPressed: () => setState(() => _companion = !_companion),
           ),
           IconButton(
