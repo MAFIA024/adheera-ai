@@ -180,7 +180,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
     await _askMultiAI(text);
   }
 
-  // Ultra-Fast Groq (0.2s guaranteed)
+  // Ultra-Fast Groq
   Future<String?> _callGroq(String prompt) async {
     try {
       final res = await http.post(
@@ -289,7 +289,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          // Speaker icon top right side
           IconButton(
             icon: const Icon(Icons.volume_up, color: Color(0xFF00E5FF), size: 24),
             onPressed: () => _speak(_adheeraReply),
@@ -301,7 +300,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
         padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
         child: Column(
           children: [
-            // User Commands Text Bar
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -319,7 +317,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
             const Spacer(),
 
             // ==========================================
-            // 2ND IMAGE JAISA DENSE RAINBOW PARTICLE ORB (MEDIUM SIZE)
+            // 100% PERFECT ROUND DENSE RAINBOW ORB
             // ==========================================
             AnimatedBuilder(
               animation: _orbController,
@@ -327,7 +325,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
                 width: 220,
                 height: 220,
                 child: CustomPaint(
-                  painter: RainbowDenseParticleOrbPainter(
+                  painter: PerfectlyRoundRainbowOrbPainter(
                     animValue: _orbController.value,
                     isListening: _isListening,
                     isThinking: _isThinking,
@@ -338,7 +336,6 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
 
             const SizedBox(height: 15),
 
-            // Minimal Status Pill
             Text(
               _isListening
                   ? "• LISTENING..."
@@ -355,9 +352,7 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
 
             const Spacer(),
 
-            // ==========================================
-            // ORIGINAL MIC BUTTON (Commands dene ke liye)
-            // ==========================================
+            // Original Mic Button
             GestureDetector(
               onTap: _listen,
               child: Container(
@@ -394,25 +389,24 @@ class _AdheeraScreenState extends State<AdheeraScreen> with SingleTickerProvider
   }
 }
 
-// ==========================================
-// 2ND IMAGE DENSE RAINBOW SPECTRUM ORB PAINTER
-// ==========================================
+// =======================================================
+// 100% PERFECT ROUND 3D SPHERE ORB (NO SHAPE DEFORMATION)
+// =======================================================
 class DenseOrbPoint {
   final double x, y, z;
   final double hue;
   const DenseOrbPoint(this.x, this.y, this.z, this.hue);
 }
 
-class RainbowDenseParticleOrbPainter extends CustomPainter {
+class PerfectlyRoundRainbowOrbPainter extends CustomPainter {
   final double animValue;
   final bool isListening;
   final bool isThinking;
 
-  // 1200+ Dense Particles for full realistic texture
   static final List<DenseOrbPoint> _points = () {
     final list = <DenseOrbPoint>[];
     const count = 1200;
-    const phi = 2.399963229728653; // Golden angle
+    const phi = 2.399963229728653;
     for (int i = 0; i < count; i++) {
       final y = 1.0 - (i / (count - 1.0)) * 2.0;
       final r = math.sqrt(math.max(0.0, 1.0 - y * y));
@@ -420,7 +414,6 @@ class RainbowDenseParticleOrbPainter extends CustomPainter {
       final x = math.cos(theta) * r;
       final z = math.sin(theta) * r;
 
-      // Color Hue based on 3D angle (Red -> Yellow -> Green -> Cyan -> Blue -> Purple)
       final angle = math.atan2(y, x);
       final normalizedHue = ((angle + math.pi) / (2 * math.pi) * 360.0);
       list.add(DenseOrbPoint(x, y, z, normalizedHue));
@@ -428,7 +421,7 @@ class RainbowDenseParticleOrbPainter extends CustomPainter {
     return list;
   }();
 
-  RainbowDenseParticleOrbPainter({
+  PerfectlyRoundRainbowOrbPainter({
     required this.animValue,
     required this.isListening,
     required this.isThinking,
@@ -439,43 +432,48 @@ class RainbowDenseParticleOrbPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final baseRadius = size.width * 0.44;
 
+    // Uniform pulse - pura sphere ek sath dharak (pulse) karega bina shape bigade
+    double pulse = 1.0;
     double speed = 1.0;
-    double wave = 0.02;
+    double colorSpeed = 60.0;
 
     if (isThinking) {
-      speed = 2.8;
-      wave = 0.08;
+      speed = 3.6;
+      colorSpeed = 160.0;
+      pulse = 1.0 + 0.03 * math.sin(animValue * 14 * math.pi);
     } else if (isListening) {
-      speed = 2.0;
-      wave = 0.12;
+      speed = 2.8;
+      colorSpeed = 120.0;
+      pulse = 1.0 + 0.04 * math.sin(animValue * 18 * math.pi);
     }
 
+    // Radius har particle ke liye bilkul barabar (Strict Round Ball)
+    final r = baseRadius * pulse;
+
     final rotY = animValue * 2 * math.pi * speed;
-    final rotX = math.sin(animValue * 2 * math.pi) * 0.25;
+    final rotX = 0.15 * math.sin(animValue * 2 * math.pi);
 
     final cosY = math.cos(rotY), sinY = math.sin(rotY);
     final cosX = math.cos(rotX), sinX = math.sin(rotX);
 
     for (final pt in _points) {
-      // 3D Matrix Rotation
       final x1 = pt.x * cosY - pt.z * sinY;
       final z1 = pt.x * sinY + pt.z * cosY;
       final y1 = pt.y * cosX - z1 * sinX;
       final z2 = pt.y * sinX + z1 * cosX;
 
-      // Dynamic movement wave
-      final ripple = 1.0 + wave * math.sin(animValue * 12 + pt.x * 6 + pt.y * 6);
-      final r = baseRadius * ripple;
-
       final sx = center.dx + x1 * r;
       final sy = center.dy + y1 * r;
 
-      // Depth perception
       final depth = ((z2 + 1.1) / 2.2).clamp(0.15, 1.0);
-      final dotRadius = 0.8 + depth * 1.2;
+      
+      // Particle shimmer with voice
+      double dotRadius = 0.8 + depth * 1.3;
+      if (isListening) {
+        dotRadius += 0.22 * math.sin(animValue * 22 + pt.x * 6);
+      }
 
-      // 2nd Image Exact Rainbow HSV Spectrum Colors
-      final hue = (pt.hue + animValue * 60) % 360;
+      final hue = (pt.hue + animValue * colorSpeed) % 360;
       final color = HSVColor.fromAHSV(
         (depth * 0.85 + 0.15).clamp(0.2, 1.0),
         hue,
@@ -488,6 +486,6 @@ class RainbowDenseParticleOrbPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant RainbowDenseParticleOrbPainter old) =>
+  bool shouldRepaint(covariant PerfectlyRoundRainbowOrbPainter old) =>
       old.animValue != animValue || old.isListening != isListening || old.isThinking != isThinking;
 }
